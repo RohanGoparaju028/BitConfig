@@ -6,14 +6,14 @@ import (
 	"os"
 )
 var language = map[string][]string {
-	    "typeScript" : []string {"package.json","package-lock.json","yarn.lock"},
-		"javaScript" : []string {"package.json","package-lock.json","yarn.lock"},
-		"python" : []string{"requirments.txt","Pipefile","pyproject.toml"},
-		"c#" : []string {".csproj"},
-		"java" : []string {"pom.xml","build.gradle"},
-		"go" : []string{"go.mod"},
-		"ruby":[]string{"Gemfile","Gemfile.lock"},
-		"rust" :[]string{"cargo.toml"},
+	    "typeScript" : {"package.json","package-lock.json","yarn.lock"},
+		"javaScript" :  {"package.json","package-lock.json","yarn.lock"},
+		"python" : {"requirments.txt","Pipefile","pyproject.toml"},
+		"c#" :  {".csproj"},
+		"java" :  {"pom.xml","build.gradle"},
+		"go" : {"go.mod"},
+		"ruby":{"Gemfile","Gemfile.lock"},
+		"rust" :{"cargo.toml"},
 };
 type Initfile struct {
 	Language     []string `json:"language"`     // For the field  that the devs are coding in
