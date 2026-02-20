@@ -4,14 +4,25 @@ import (
 	"fmt"
 	"os"
 )
-
+const language = map[string][]string {
+	    "typeScript" : []string {"package.json","package-lock.json","yarn.lock"},
+		"javaScript" : []string {"package.json","package-lock.json","yarn.lock"},
+		"python" : []string{"requirments.txt","Pipefile","pyproject.toml"},
+		"c#" : []string {".csproj"},
+		"java" : []string {"pom.xml","build.gradle"},
+		"go" : []string{"go.mod"},
+		"ruby":[]string{"Gemfile","Gemfile.lock"},
+		"rust" :[]string{"cargo.toml"},
+};
 type Initfile struct {
 	Language     []string ` json:"language"`     // For the field  that the devs are coding in
 	Dependencies []string ` json:"dependencies"` // The dependencies that are currently in use or installed
 	Model        string   `json:"model" `        // LLM that the devolpers are using for the project
 
 }
+func iterateToFindLanguage() []string {
 
+}
 func DoInit() {
 	fmt.Print("We are initializing the BitConfig in the current directory\nplease choose the appropritate answers that best decribes your project\n")
 	var llm string = "Ollama"
@@ -22,7 +33,7 @@ func DoInit() {
 		fmt.Println("There is no .bitconfig file so writing all the dependencies")
 		supportedLLM := []string{"Goose","Ollama", "Gemini"}
 		var choice int
-		fmt.Print("enter a choice between 0-4 for selectiing the model:")
+		fmt.Print("enter a choice between 0-2 for selectiing the model:")
 		fmt.Scanf("%d", &choice)
 		switch choice {
 		case 0:
@@ -35,6 +46,6 @@ func DoInit() {
 			fmt.Println("Enter a valid choice")
 			os.Exit(1)
 		}
-
+		language := iterateToFindLanguage()
 	}
 }
