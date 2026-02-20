@@ -1,0 +1,8 @@
+Languages that needed to be supported are
+1) Ts/Js and package.json and  package-lock.json (npm) or yarn.lock
+2) python and requirements.txt, Pipfile, or pyproject.toml
+3) C# and .csproj file
+4) Java and look at build.gradle or pom.xml maven file
+5) Go and go.mod
+6) Ruby and Gemfile and Gemfile.lock
+7) Rust and cargo.toml

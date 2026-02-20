@@ -31,8 +31,6 @@ func DoInit() {
 			llm = supportedLLM[1]
 		case 2:
 			llm = supportedLLM[2]
-		case 3:
-			llm = supportedLLM[3]
 		default:
 			fmt.Println("Enter a valid choice")
 			os.Exit(1)
