@@ -20,7 +20,7 @@ func DoInit() {
 		os.Exit(1)
 	} else {
 		fmt.Println("There is no .bitconfig file so writing all the dependencies")
-		supportedLLM := []string{"OpenAI", "Anthropic", "Ollama", "Gemini"}
+		supportedLLM := []string{"Goose","Ollama", "Gemini"}
 		var choice int
 		fmt.Print("enter a choice between 0-4 for selectiing the model:")
 		fmt.Scanf("%d", &choice)

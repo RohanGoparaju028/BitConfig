@@ -20,6 +20,7 @@ func main() {
 
 	case "help":
 		fmt.Println("Here are the commands that are supported and used in the CLI")
+		L.Help()
 	case "get-context":
 		fmt.Println("Getting the context of the application that you are devolping and storing in the json file")
 
