@@ -15,7 +15,7 @@ var languageFiles = map[string][]string{
 	"typeScript": {"package.json", "package-lock.json", "yarn.lock"},
 	"javaScript": {"package.json", "package-lock.json", "yarn.lock"},
 	"python":     {"requirements.txt", "Pipfile", "pyproject.toml"},
-	"csharp":     {".csproj"},
+	"c#":     {".csproj"},
 	"java":       {"pom.xml", "build.gradle"},
 	"go":         {"go.mod"},
 	"ruby":       {"Gemfile", "Gemfile.lock"},
@@ -24,13 +24,14 @@ var languageFiles = map[string][]string{
 
 // Config is the structure of what gets saved into .bitconfig/config.json
 
-type Config struct {
-	ProjectName   string   `json:"project_name"`   // name of the project folder
-	Model         string   `json:"model"`          // AI tool the developer is using
-	Languages     []string `json:"languages"`      // detected programming languages
-	Dependencies  []string `json:"dependencies"`   // dependency files found (go.mod, package.json etc)
-	TrackedFiles  []string `json:"tracked_files"`  // config files BitConfig will watch
-	InitializedAt string   `json:"initialized_at"` // timestamp of when init was run
+type Initfile struct {
+    ProjectName   string   `json:"project_name"`
+	Languages     []string `json:"languages"`     // For the field  that the devs are coding in
+	Dependencies map[string]int `json:"dependencies"` // The dependencies that are currently in use or installed
+	Model        string   `json:"model" `        // LLM that the devolpers are using for the project
+    Config       []string `json:"config"`
+	TrackedFiles  []string `json:"tracked_files"`
+	Initialized   string   `json:"initialized at"`
 }
 
 // isEmpty checks if a directory has no files in it
@@ -56,58 +57,117 @@ func isEmpty(dirPath string) (bool, error) {
 }
 
 // iterateToFindLanguage walks through the current directory
-
-func iterateToFindLanguage() ([]string, []string) {
-	// Get the path of the current directory we are in
+var dependencyfile = []string {}
+func iterateToFindLanguage() []string {
 	currentDir, err := os.Getwd()
 	if err != nil {
 		fmt.Println("Error while getting current directory:", err)
-
-		return []string{}, []string{}
+		return []string{}
 	}
-
-	// Check if the directory is completely empty
 
 	empty, err := isEmpty(currentDir)
 	if err != nil {
 		fmt.Println("Error while checking directory:", err)
-		return []string{}, []string{}
+		return []string{}
 	}
-
-	// If the folder is empty
 	if empty {
-		fmt.Println(" Current directory is empty. No project detected.")
-		return []string{}, []string{}
+		fmt.Println("Current directory is empty. No project detected.")
+		return []string{}
 	}
 
-	// These will hold our results
 	var detectedLanguages []string
-	var foundDependencyFiles []string
-
-	// Loop through every language in our map
 
 	for language, files := range languageFiles {
+		found := false
 
-		for _, file := range files {
-
-			// os.Stat checks if a file exists
-			// if err == nil → file EXISTS
-			if _, err := os.Stat(file); err == nil {
-
-				// Found a match! Add this language to our list
-				detectedLanguages = append(detectedLanguages, language)
-
-				// Also record which specific file we found
-				foundDependencyFiles = append(foundDependencyFiles, file)
-
-				break
+		filepath.Walk(currentDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil || found {
+				return nil
 			}
-		}
+
+			if info.IsDir() {
+				return nil
+			}
+
+			for _, file := range files {
+				// If entry starts with '.', treat as extension
+				if len(file) > 0 && file[0] == '.' {
+					if filepath.Ext(info.Name()) == file {
+						detectedLanguages = append(detectedLanguages, language)
+						dependencyfile = append(dependencyfile, path)
+						found = true
+						break
+					}
+				} else {
+					// Exact filename match
+					if info.Name() == file {
+						detectedLanguages = append(detectedLanguages, language)
+						dependencyfile = append(dependencyfile, path)
+						found = true
+						break
+					}
+				}
+			}
+
+			return nil
+		})
 	}
 
-	return detectedLanguages, foundDependencyFiles
+	return detectedLanguages
 }
+func countLines(files string) (int,error) {
+	file,err := os.Open(files)
+	if err != nil {
+		fmt.Println("Error opening the file",err)
+		return 0,err;
+	}
+	defer file.Close()
 
+  const bufferSize = 4096
+  buffer := make([]byte, bufferSize)
+  lineCount := 0
+  totalBytesRead := 0
+  var lastByte byte
+
+  for {
+    n, err := file.Read(buffer)
+    if n > 0 {
+      totalBytesRead += n
+      lastByte = buffer[n-1]
+
+      for i := 0; i < n; i++ {
+        if buffer[i] == '\n' {
+          lineCount++
+        }
+      }
+    }
+
+    if err == io.EOF {
+      break
+    }
+    if err != nil {
+      return 0, err
+    }
+  }
+
+  if totalBytesRead > 0 && lastByte != '\n' {
+    lineCount++
+  }
+
+  return lineCount, nil
+}
+func TrackDependentFile() map[string]int {
+	dep := map[string]int{}
+	for _,file := range dependencyfile {
+		lines,err := countLines(file)
+		if err != nil {
+			fmt.Println("Error while processing the file... The error encountered was",err)
+			os.Exit(1)
+		}
+		dep[file] = lines
+	}
+	return dep
+}
 func findConfigFiles() []string {
 	var found []string
 
@@ -190,15 +250,14 @@ func DoInit() {
 
 	// by looking for known files like go.mod, package.json etc
 	fmt.Println("\n Detecting project language...")
-	detectedLanguages, foundDependencyFiles := iterateToFindLanguage()
+	detectedLanguages := iterateToFindLanguage()
+	dep := TrackDependentFile()
 
 	// Tell the developer what we found
 	if len(detectedLanguages) == 0 {
 		fmt.Println(" Could not detect language automatically.")
-		fmt.Println(" BitConfig looks for: go.mod, package.json, requirements.txt etc.")
 	} else {
 		fmt.Printf("Language(s) detected: %v\n", detectedLanguages)
-		fmt.Printf("Dependency file(s) found: %v\n", foundDependencyFiles)
 	}
 
 	// Find config files in the project
@@ -216,13 +275,13 @@ func DoInit() {
 	}
 	// Build the Config struct with everything we collected above
 
-	config := Config{
+	config := Initfile{
 		ProjectName:   projectName,
 		Model:         selectedModel,
 		Languages:     detectedLanguages,
-		Dependencies:  foundDependencyFiles,
+		Dependencies:  dep,
 		TrackedFiles:  trackedFiles,
-		InitializedAt: time.Now().Format("2006-01-02 15:04:05"),
+		Initialized: time.Now().Format("2006-01-02 15:04:05"),
 	}
 
 	// Create the .bitconfig folder on disk
