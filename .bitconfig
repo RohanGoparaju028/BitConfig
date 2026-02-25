@@ -1,0 +1,13 @@
+{
+  "project_name": "BitConfig",
+  "languages": [
+    "go"
+  ],
+  "dependencies": {
+    "/Users/rohangoparaju/Desktop/GO/BitConfig/go.mod": 3
+  },
+  "model": "Ollama",
+  "config": null,
+  "tracked_files": null,
+  "initialized at": "2026-02-23 12:50:21"
+}

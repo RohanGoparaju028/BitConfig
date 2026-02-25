@@ -76,42 +76,24 @@ func iterateToFindLanguage() []string {
 	}
 
 	var detectedLanguages []string
+     err = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
 
-	for language, files := range languageFiles {
-		found := false
+		name := d.Name()
 
-		filepath.Walk(currentDir, func(path string, info os.FileInfo, err error) error {
-			if err != nil || found {
-				return nil
-			}
-
-			if info.IsDir() {
-				return nil
-			}
-
-			for _, file := range files {
-				// If entry starts with '.', treat as extension
-				if len(file) > 0 && file[0] == '.' {
-					if filepath.Ext(info.Name()) == file {
-						detectedLanguages = append(detectedLanguages, language)
-						dependencyfile = append(dependencyfile, path)
-						found = true
-						break
-					}
-				} else {
-					// Exact filename match
-					if info.Name() == file {
-						detectedLanguages = append(detectedLanguages, language)
-						dependencyfile = append(dependencyfile, path)
-						found = true
-						break
-					}
+		for lang, files := range language {
+			for _, f := range files {
+				if name == f {
+					detected[lang] = true
+					dependencyfile = append(dependencyfile, path)
 				}
 			}
+		}
 
-			return nil
-		})
-	}
+		return nil
+	})
 
 	return detectedLanguages
 }
@@ -284,11 +266,6 @@ func DoInit() {
 		Initialized: time.Now().Format("2006-01-02 15:04:05"),
 	}
 
-	// Create the .bitconfig folder on disk
-	if err := os.MkdirAll(".bitconfig", 0755); err != nil {
-		fmt.Printf("Could not create .bitconfig folder: %v\n", err)
-		os.Exit(1)
-	}
 	data, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		fmt.Printf("Could not prepare config data: %v\n", err)
@@ -296,15 +273,10 @@ func DoInit() {
 	}
 
 	// 0644 means the file is readable by everyone but only writable by owner
-	if err := os.WriteFile(".bitconfig/config.json", data, 0644); err != nil {
+	if err := os.WriteFile(".bitconfig", data, 0644); err != nil {
 		fmt.Printf("Could not save config file: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Println("\n BitConfig initialized successfully!")
-	fmt.Printf("   Project  : %s\n", projectName)
-	fmt.Printf("   Model    : %s\n", selectedModel)
-	fmt.Printf("   Language : %v\n", detectedLanguages)
-	fmt.Printf("   Tracking : %d config file(s)\n", len(trackedFiles))
-	fmt.Println("\n Next step: run 'bitconfig update' to record ")
+	fmt.Println(".bitconfig created successfully")
 }
