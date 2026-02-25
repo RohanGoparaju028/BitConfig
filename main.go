@@ -23,7 +23,7 @@ func main() {
 		L.Help()
 	case "get-context":
 		fmt.Println("Getting the context of the application that you are devolping and storing in the json file")
-
+		L.Get_Context()
 	case "push-context":
 		_, err := os.Open(".bitconfig")
 		if err != nil {

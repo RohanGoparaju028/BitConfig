@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+	"slices"
 )
 
 // languageFiles is a map that connects a language name to its known files
@@ -74,20 +75,25 @@ func iterateToFindLanguage() []string {
 		fmt.Println("Current directory is empty. No project detected.")
 		return []string{}
 	}
-
+    detected := map[string]bool{}
 	var detectedLanguages []string
-     err = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+     err = filepath.WalkDir(currentDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
 
 		name := d.Name()
 
-		for lang, files := range language {
+		for lang, files := range languageFiles {
 			for _, f := range files {
 				if name == f {
 					detected[lang] = true
 					dependencyfile = append(dependencyfile, path)
+					if(slices.Contains(detectedLanguages,lang)){
+						continue;
+					} else{
+						detectedLanguages = append(detectedLanguages,lang)
+					}
 				}
 			}
 		}
