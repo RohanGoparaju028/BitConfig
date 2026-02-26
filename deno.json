@@ -1,0 +1,6 @@
+{
+  "imports": {
+    "fs": "npm:fs@^0.0.1-security",
+    "node-summarizer": "npm:node-summarizer@^1.0.7"
+  }
+}

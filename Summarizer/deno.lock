@@ -214,6 +214,7 @@
     "packageJson": {
       "dependencies": [
         "npm:fs@^0.0.1-security",
+        "npm:natural@^8.1.0",
         "npm:node-summarizer@^1.0.7",
         "npm:readme-summarizer@^1.2.7"
       ]

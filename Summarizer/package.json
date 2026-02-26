@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "fs": "^0.0.1-security",
+    "natural": "^8.1.0",
     "node-summarizer": "^1.0.7",
     "readme-summarizer": "^1.2.7"
   }
