@@ -36,6 +36,7 @@ func main() {
 		L.Diff()
 	case "update":
 		fmt.Println("Updatating the changes in the .bitconfig")
+		L.DoUpdate()
 	default:
 		panic("Unsupported command please try a valid command or view BitConfig help command to see the comands that you wanna use ")
 	}

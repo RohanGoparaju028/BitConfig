@@ -1,7 +1,13 @@
 package cmds
 import (
 	"fmt"
+	"os"
+	"errors"
 )
-func Update() {
-	fmt.Println("Performing the updatation on the .bitconfig")
+func DoUpdate() {
+	file = ".bitconfig"
+	if _,err := os.Open(file);errors.Is(err,os.ErrNotExist) {
+		panic(".bitconfig doesnot exit in the directory,use init to initialize the bitconfig")
+	}
+	
 }
