@@ -33,6 +33,7 @@ func main() {
 		}
 	case "diff":
 		fmt.Println("The changes with the last change is")
+		L.Diff()
 	case "update":
 		fmt.Println("Updatating the changes in the .bitconfig")
 	default:

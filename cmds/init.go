@@ -25,14 +25,14 @@ var languageFiles = map[string][]string{
 
 // Config is the structure of what gets saved into .bitconfig/config.json
 
-type Initfile struct {
+type BitConfigFile struct {
     ProjectName   string   `json:"project_name"`
 	Languages     []string `json:"languages"`     // For the field  that the devs are coding in
 	Dependencies map[string]int `json:"dependencies"` // The dependencies that are currently in use or installed
 	Model        string   `json:"model" `        // LLM that the devolpers are using for the project
-    Config       []string `json:"config"`
-	TrackedFiles  []string `json:"tracked_files"`
-	Initialized   string   `json:"initialized at"`
+	Initialized   string   `json:"initialized at"` // The moment the file is created 
+	Dependencieschanged bool `json:"is dependencies changed or not between now and the previous iterations"` // to check is there any dependecy change
+	DependecyListthathasChanged []string `json:"list of dependencies that has changed"`
 }
 
 // isEmpty checks if a directory has no files in it
@@ -156,41 +156,7 @@ func TrackDependentFile() map[string]int {
 	}
 	return dep
 }
-func findConfigFiles() []string {
-	var found []string
 
-	configExtensions := []string{".env", ".yaml", ".yml", ".toml", ".ini", ".conf"}
-
-	filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
-		}
-
-		// Skip folders we don't need
-		if info.IsDir() {
-			name := info.Name()
-			if name == "node_modules" || name == ".git" || name == ".bitconfig" {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-
-		// Get the extension of this file
-		ext := filepath.Ext(info.Name())
-
-		// Loop through our list and check if the extension matches the list
-		for _, validExt := range configExtensions {
-			if ext == validExt {
-				found = append(found, path)
-				break // found a match, we can stop checking
-			}
-		}
-
-		return nil
-	})
-
-	return found
-}
 
 // DoInit is the main function that runs when the developer types "bitconfig init".
 // It gathers information about the project and saves it to .bitconfig/config.json
@@ -237,39 +203,19 @@ func DoInit() {
 	fmt.Printf("AI Model selected is : %s\n", selectedModel)
 
 	// by looking for known files like go.mod, package.json etc
-	fmt.Println("\n Detecting project language...")
 	detectedLanguages := iterateToFindLanguage()
 	dep := TrackDependentFile()
-
-	// Tell the developer what we found
-	if len(detectedLanguages) == 0 {
-		fmt.Println(" Could not detect language automatically.")
-	} else {
-		fmt.Printf("Language(s) detected: %v\n", detectedLanguages)
-	}
-
-	// Find config files in the project
-	// These are the files BitConfig will watch for changes (like .env, .yaml)
-	fmt.Println("\n Scanning for config files to track...")
-	trackedFiles := findConfigFiles()
-
-	if len(trackedFiles) == 0 {
-		fmt.Println("No config files found.")
-	} else {
-		fmt.Printf(" Found %d config file(s):\n", len(trackedFiles))
-		for _, file := range trackedFiles {
-			fmt.Printf("   → %s\n", file)
-		}
-	}
+	
 	// Build the Config struct with everything we collected above
 
-	config := Initfile{
+	config := BitConfigFile{
 		ProjectName:   projectName,
 		Model:         selectedModel,
 		Languages:     detectedLanguages,
 		Dependencies:  dep,
-		TrackedFiles:  trackedFiles,
 		Initialized: time.Now().Format("2006-01-02 15:04:05"),
+		Dependencieschanged:false, // always for the first time when we are building the .bitconfig there is no dependencies that are changed becauase that is the first time we are setting the bitcconfig file
+		DependecyListthathasChanged:[]string{}, // Since there is no dependencies that are changed then the array is empty
 	}
 
 	data, err := json.MarshalIndent(config, "", "  ")
