@@ -157,7 +157,6 @@ func TrackDependentFile() map[string]int {
 	return dep
 }
 
-
 // DoInit is the main function that runs when the developer types "bitconfig init".
 // It gathers information about the project and saves it to .bitconfig/config.json
 func DoInit() {
@@ -176,7 +175,6 @@ func DoInit() {
 	// Get the project name automatically from the current folder name
 	currentDir, _ := os.Getwd()
 	projectName := filepath.Base(currentDir)
-	fmt.Printf("\nProject detected: %s\n", projectName)
 	// Ask the developer which AI tool they are using
 
 	fmt.Println("\nWhich AI tool are you using for this project?")
