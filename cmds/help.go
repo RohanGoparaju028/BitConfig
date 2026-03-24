@@ -3,7 +3,6 @@ package cmds
 import "fmt"
 
 func Help() {
-	fmt.Println("bitconfig help returns the avalible and supported commands are")
 	fmt.Println("bitconfig always comes first then followed by command")
 	fmt.Println("For first time users and for one who are refresing thier memory the following command and thier description is sperated by -> ")
 	fmt.Println("bitconfig init -> Initialized an empty .bitconfig file in the current directory taking note of the language being used and initial dependencies along with the llm model")

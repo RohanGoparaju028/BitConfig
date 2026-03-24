@@ -24,12 +24,7 @@ func main() {
 		fmt.Println("Getting the context of the application that you are devolping and storing in the json file")
 		L.Get_Context()
 	case "push-context":
-		_, err := os.Open(".bitconfig")
-		if err != nil {
-			panic(err)
-		} else {
-			fmt.Println("Reading the context.json and passing it to the tool")
-		}
+		L.PushContext()
 	case "diff":
 		fmt.Println("The changes with the last change is")
 		L.Diff()

@@ -1,0 +1,4 @@
+cloud.google.com/go v0.123.0 h1:2NAUJwPR47q+E35uaJeYoNhuNEM9kM8SjgRgdeOJUSE=
+cloud.google.com/go v0.123.0/go.mod h1:xBoMV08QcqUGuPW65Qfm1o9Y4zKZBpGS+7bImXLTAZU=
+cloud.google.com/go/vertexai v0.17.0 h1:jnMsFEgi4cWAECvuP0YhHnvEnhHl8B3dIQh5qgaHQBY=
+cloud.google.com/go/vertexai v0.17.0/go.mod h1:WSmxmxzYvzWEMB8vxQ7S5huioo0UwtrG9d//Jm8Npxo=
