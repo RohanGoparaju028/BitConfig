@@ -1,57 +1,30 @@
 package cmds
 
 import (
-	"bufio"
-	"context"
-	"log"
+	"encoding/json"
+	"errors"
 	"os"
-
-	"cloud.google.com/go/vertexai/genai"
 )
 
-func getGeminiConnection() {
-	ctx := context.Background()
-	client, err := genai.NewClient(ctx, "")
-	if err != nil {
-		log.Fatal("Eror while establishing the connection to te gemini please try again")
-	}
-	defer client.Close()
-	have_communication(ctx)
-}
-func getGooseConnection() {
+func PushContext() {
+	filename := ".bitconfig"
 
-}
-func getOllamaConnection() {
-
-}
-func have_communication(ctx context.Context) {
-
-}
-func Push_Context() {
-	file, err := os.Open(".bitconfig")
-	if err != nil {
-		panic(".bitconfig does not exist in the current directory please use init")
-	}
-	defer file.Close()
-	Scanner := bufio.NewScanner(file)
-	Scanner.Split(bufio.ScanWords)
-	var model_name string
-	for Scanner.Scan() {
-		if Scanner.Text() == "model" {
-			if Scanner.Scan() {
-				model_name = Scanner.Text()
-				break
-			}
-
+	if _, err := os.Stat(filename); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			panic(".bitconfig not exist in the current directory please use init or use help to see commands")
 		}
 	}
-	switch model_name {
-	case "Goose":
-		getGooseConnection()
-	case "Ollama":
-		getOllamaConnection()
-	case "Gemini":
-		getGeminiConnection()
-
+	file, err := os.ReadFile(filename)
+	if err != nil {
+		panic("Error while opening the file")
 	}
+	var jsonmap map[string]interface{}
+	if err := json.Unmarshal(file, &jsonmap); err != nil {
+		panic("Error while reading .bitconfig")
+	}
+	var model_name string
+	if val, ok := jsonmap["model"]; ok {
+		model_name = val.(string)
+	}
+
 }
