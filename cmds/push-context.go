@@ -26,5 +26,4 @@ func PushContext() {
 	if val, ok := jsonmap["model"]; ok {
 		model_name = val.(string)
 	}
-
 }
