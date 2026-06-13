@@ -194,7 +194,7 @@ func Get_Context() {
 	case 1:
 		get_more_context()
 	case 0:
-		fmt.Println("Done! Use push-context to send the context to your LLM.")
+		fmt.Println("Done! Run push-context to send this to your terminal agent.")
 	default:
 		fmt.Println("Not a valid option.")
 	}

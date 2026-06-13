@@ -1,4 +1,5 @@
 package main
+
 import (
 	"fmt"
 	"os"
@@ -7,31 +8,36 @@ import (
 )
 
 func main() {
-	fmt.Println("Thank you for using BitConfig,Please use the Init command to start \n or use the help command to start you with the tool")
 	if len(os.Args) != 2 {
-		panic("The command that you have entered is wrong the correct way is BitConfig <command name> \n to get to know the commands use BitConfig help")
+		fmt.Println("Usage: bitconfig <command>")
+		fmt.Println("Run 'bitconfig help' to see available commands.")
+		os.Exit(1)
 	}
+
 	command := os.Args[1]
 	switch command {
 	case "init":
-		fmt.Println("Initializing the BitConfig in the current directory")
+		fmt.Println("Initializing BitConfig in the current directory...")
 		L.DoInit()
-
 	case "help":
-		fmt.Println("Here are the commands that are supported and used in the CLI")
 		L.Help()
 	case "get-context":
-		fmt.Println("Getting the context of the application that you are devolping and storing in the json file")
+		fmt.Println("Building project context for your terminal agent...")
 		L.Get_Context()
 	case "push-context":
+		fmt.Println("Sending context to your terminal agent...")
 		L.PushContext()
+	case "status":
+		L.Status()
 	case "diff":
-		fmt.Println("The changes with the last change is")
+		fmt.Println("Comparing project against .bitconfig...")
 		L.Diff()
 	case "update":
-		fmt.Println("Updatating the changes in the .bitconfig")
+		fmt.Println("Updating .bitconfig with current project state...")
 		L.DoUpdate()
 	default:
-		panic("Unsupported command please try a valid command or view BitConfig help command to see the comands that you wanna use ")
+		fmt.Printf("Unknown command: %s\n", command)
+		fmt.Println("Run 'bitconfig help' to see available commands.")
+		os.Exit(1)
 	}
 }

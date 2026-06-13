@@ -5,71 +5,87 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 )
 
-var changedDependenciesList []string
-
-func compareBitConfig(bitconfig, updated_bitconfig BitConfigFile) bool {
-	if !reflect.DeepEqual(bitconfig.Languages, updated_bitconfig.Languages) {
+func compareBitConfig(stored, current BitConfigFile) bool {
+	if !reflect.DeepEqual(stored.Languages, current.Languages) {
 		return true
 	}
-	if !reflect.DeepEqual(bitconfig.Dependencies, updated_bitconfig.Dependencies) {
+	if !reflect.DeepEqual(stored.Dependencies, current.Dependencies) {
 		return true
 	}
-
 	return false
 }
+
 func DoUpdate() {
-	file, err := os.Open(".bitconfig")
+	bitconfig, err := LoadBitConfig()
 	if err != nil {
-		panic(".bitconfig doesnot exit in the directory,use init to initialize the bitconfig")
+		fmt.Println(err)
+		os.Exit(1)
 	}
-	defer file.Close()
-	var bitconfig BitConfigFile
-	err = json.NewDecoder(file).Decode(&bitconfig) // Stores the current .bitconfig in the bitconfig structure
-	var updated_bitconfig BitConfigFile
-	currentDir, err := os.Getwd()
-	if err != nil {
-		fmt.Println("Cannot get the project name")
-		return
-	}
+
+	dependencyfile = []string{}
 	detectLanguage := iterateToFindLanguage()
 	dep := TrackDependentFile()
-	updated_bitconfig.ProjectName = currentDir
-	updated_bitconfig.Model = bitconfig.Model
-	updated_bitconfig.Languages = detectLanguage
-	updated_bitconfig.Dependencies = dep
-	ischanged := compareBitConfig(updated_bitconfig, bitconfig)
-	if ischanged {
-		updated_bitconfig.Dependencieschanged = true
-		changedDependencies(bitconfig.Dependencies, updated_bitconfig.Dependencies)
-		updated_bitconfig.DependecyListthathasChanged = changedDependenciesList
-	} else {
-		fmt.Println("There is no new update in the project")
+
+	currentDir, err := os.Getwd()
+	if err != nil {
+		fmt.Println("Cannot get the current directory:", err)
+		os.Exit(1)
+	}
+
+	updated_bitconfig := BitConfigFile{
+		ProjectName:                 filepath.Base(currentDir),
+		Model:                       bitconfig.Model,
+		Languages:                   detectLanguage,
+		Dependencies:                dep,
+		Initialized:                 bitconfig.Initialized,
+		Dependencieschanged:         false,
+		DependecyListthathasChanged: []string{},
+	}
+
+	if !compareBitConfig(bitconfig, updated_bitconfig) {
+		fmt.Println("No changes detected. .bitconfig is already up to date.")
 		return
 	}
+
+	updated_bitconfig.Dependencieschanged = true
+	updated_bitconfig.DependecyListthathasChanged = changedDependencies(bitconfig.Dependencies, updated_bitconfig.Dependencies)
+
 	data, err := json.MarshalIndent(updated_bitconfig, "", "  ")
 	if err != nil {
 		fmt.Println("Error encoding JSON:", err)
-		return
+		os.Exit(1)
 	}
-	err = os.WriteFile(file.Name(), data, 0644)
-	if err != nil {
+
+	if err := os.WriteFile(".bitconfig", data, 0644); err != nil {
 		fmt.Println("Error writing to file:", err)
-		return
+		os.Exit(1)
+	}
+
+	fmt.Println(".bitconfig updated successfully.")
+	fmt.Println("Changed dependencies:")
+	for _, item := range updated_bitconfig.DependecyListthathasChanged {
+		fmt.Printf("  - %s\n", item)
 	}
 }
-func changedDependencies(previous, updated map[string]int) {
+
+func changedDependencies(previous, updated map[string]int) []string {
+	var changedList []string
+
 	for name, updatedline := range updated {
 		currentline, exist := previous[name]
 		if !exist || currentline != updatedline {
-			changedDependenciesList = append(changedDependenciesList, name)
+			changedList = append(changedList, name)
 		}
 	}
 	for name := range previous {
 		if _, exist := updated[name]; !exist {
-			changedDependenciesList = append(changedDependenciesList, name+" removed from the list")
+			changedList = append(changedList, name+" (removed)")
 		}
 	}
+
+	return changedList
 }

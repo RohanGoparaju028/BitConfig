@@ -29,7 +29,8 @@ type BitConfigFile struct {
 	ProjectName                 string         `json:"project_name"`
 	Languages                   []string       `json:"languages"`                                                              // For the field  that the devs are coding in
 	Dependencies                map[string]int `json:"dependencies"`                                                           // The dependencies that are currently in use or installed
-	Model                       string         `json:"model" `                                                                 // LLM that the devolpers are using for the project
+	Model                       string         `json:"model"`                                                                  // Terminal agent CLI used for this project
+	AgentModel                  string         `json:"agent_model,omitempty"`                                                  // Model name for agents that need one (e.g. Ollama)
 	Initialized                 string         `json:"initialized at"`                                                         // The moment the file is created
 	Dependencieschanged         bool           `json:"is dependencies changed or not between now and the previous iterations"` // to check is there any dependecy change
 	DependecyListthathasChanged []string       `json:"list of dependencies that has changed"`
@@ -60,7 +61,22 @@ func isEmpty(dirPath string) (bool, error) {
 // iterateToFindLanguage walks through the current directory
 var dependencyfile = []string{}
 
+func LoadBitConfig() (BitConfigFile, error) {
+	file, err := os.Open(".bitconfig")
+	if err != nil {
+		return BitConfigFile{}, fmt.Errorf(".bitconfig not found — run 'bitconfig init' first")
+	}
+	defer file.Close()
+
+	var config BitConfigFile
+	if err := json.NewDecoder(file).Decode(&config); err != nil {
+		return BitConfigFile{}, fmt.Errorf("could not read .bitconfig: %v", err)
+	}
+	return config, nil
+}
+
 func iterateToFindLanguage() []string {
+	dependencyfile = []string{}
 	currentDir, err := os.Getwd()
 	if err != nil {
 		fmt.Println("Error while getting current directory:", err)
@@ -84,6 +100,9 @@ func iterateToFindLanguage() []string {
 		}
 
 		name := d.Name()
+		if d.IsDir() && skipList[name] {
+			return filepath.SkipDir
+		}
 
 		for lang, files := range languageFiles {
 			for _, f := range files {
@@ -178,29 +197,37 @@ func DoInit() {
 	projectName := filepath.Base(currentDir)
 	// Ask the developer which AI tool they are using
 
-	fmt.Println("\nWhich AI tool are you using for this project?")
-	fmt.Println("  0 — Claude")
-	fmt.Println("  1 — Ollama")
-	fmt.Println("  2 — Gemini")
-	fmt.Println(". 3 - ChatGpt")
+	fmt.Println("\nWhich terminal agent do you use for this project?")
+	fmt.Println("  0 — Claude Code  (claude)")
+	fmt.Println("  1 — Cursor Agent (agent)")
+	fmt.Println("  2 — Ollama       (ollama)")
+	fmt.Println("  3 — Gemini CLI   (gemini)")
+	fmt.Println("  4 — Aider        (aider)")
 
-	fmt.Print("\nEnter a number (0-3): ")
+	fmt.Print("\nEnter a number (0-4): ")
 
 	var modelChoice int
 	fmt.Scanf("%d", &modelChoice)
 
-	// List of supported models in the same order as shown above
-	supportedModels := []string{"Claude", "Ollama", "Gemini", "ChatGpt"}
+	supportedAgents := []string{"Claude Code", "Cursor Agent", "Ollama", "Gemini CLI", "Aider"}
 
-	// Validate that the number they typed is within the valid range
-	if modelChoice < 0 || modelChoice > 3 {
-		fmt.Println("Invalid choice. Please enter a number between 0 and 3.")
+	if modelChoice < 0 || modelChoice > 4 {
+		fmt.Println("Invalid choice. Please enter a number between 0 and 4.")
 		os.Exit(1)
 	}
 
-	// Pick the model from the list using their choice as the index
-	selectedModel := supportedModels[modelChoice]
-	fmt.Printf("AI Model selected is : %s\n", selectedModel)
+	selectedAgent := supportedAgents[modelChoice]
+	fmt.Printf("Terminal agent selected: %s\n", selectedAgent)
+
+	var agentModel string
+	if selectedAgent == "Ollama" {
+		fmt.Print("Enter Ollama model name (default: llama3.2): ")
+		fmt.Scanln(&agentModel)
+		if agentModel == "" {
+			agentModel = "llama3.2"
+		}
+		fmt.Printf("Ollama model: %s\n", agentModel)
+	}
 
 	// by looking for known files like go.mod, package.json etc
 	detectedLanguages := iterateToFindLanguage()
@@ -210,7 +237,8 @@ func DoInit() {
 
 	config := BitConfigFile{
 		ProjectName:                 projectName,
-		Model:                       selectedModel,
+		Model:                       selectedAgent,
+		AgentModel:                  agentModel,
 		Languages:                   detectedLanguages,
 		Dependencies:                dep,
 		Initialized:                 time.Now().Format("2006-01-02 15:04:05"),

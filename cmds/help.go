@@ -3,11 +3,14 @@ package cmds
 import "fmt"
 
 func Help() {
-	fmt.Println("bitconfig always comes first then followed by command")
-	fmt.Println("For first time users and for one who are refresing thier memory the following command and thier description is sperated by -> ")
-	fmt.Println("bitconfig init -> Initialized an empty .bitconfig file in the current directory taking note of the language being used and initial dependencies along with the llm model")
-	fmt.Println("bitconfig get-context -> looks at the dependencies and code creates a context of whats hapenning")
-	fmt.Println("bitconfig diff -> shows the changes made in the project with respect to dependencies")
-	fmt.Println("bitconfig push-context -> pushes the context to the llm")
-	fmt.Println("bitconfig update ->updates the .bitconfig")
+	fmt.Println("Usage: bitconfig <command>")
+	fmt.Println()
+	fmt.Println("Commands:")
+	fmt.Println("  init          Initialize .bitconfig in the current directory")
+	fmt.Println("  help          Show this help message")
+	fmt.Println("  get-context   Summarize README and build context.txt for your terminal agent")
+	fmt.Println("  push-context  Send context.txt to your configured terminal agent CLI")
+	fmt.Println("  status        Show current project config and dependency snapshot")
+	fmt.Println("  diff          Compare current project against saved .bitconfig")
+	fmt.Println("  update        Save new languages and dependency changes to .bitconfig")
 }
