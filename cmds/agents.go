@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const contextPrompt = "You have been given project context below. Review it and help me understand this codebase. Suggest what to focus on next."
+const contextPrompt = "You have been given a project knowledge graph below. Use the nodes and connections to understand how files, languages, docs, and dependencies relate. Suggest what to focus on next."
 
 type terminalAgent struct {
 	Name    string
@@ -63,18 +63,18 @@ func PushContext() {
 		os.Exit(1)
 	}
 
-	contextData, err := os.ReadFile("./context.txt")
+	graph, err := LoadKnowledgeGraph()
 	if err != nil {
-		fmt.Println("No context.txt found. Run 'bitconfig get-context' first.")
+		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	if len(strings.TrimSpace(string(contextData))) == 0 {
-		fmt.Println("context.txt is empty. Run 'bitconfig get-context' to generate project context.")
+	if len(graph.Nodes) == 0 {
+		fmt.Println("Knowledge graph is empty. Run 'bitconfig get-context' first.")
 		os.Exit(1)
 	}
 
-	payload := buildContextPayload(config, contextData)
+	payload := graph.ToAgentPayload(config)
 
 	agent, err := resolveAgent(config.Model)
 	if err != nil {
@@ -94,22 +94,11 @@ func PushContext() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Sending context to %s...\n\n", agent.Name)
+	fmt.Printf("Sending knowledge graph to %s...\n\n", agent.Name)
 	if err := runTerminalAgent(binary, agent.Name, config.AgentModel, payload); err != nil {
 		fmt.Printf("Failed to run %s: %v\n", agent.Name, err)
 		os.Exit(1)
 	}
-}
-
-func buildContextPayload(config BitConfigFile, contextData []byte) string {
-	var builder strings.Builder
-	builder.WriteString("=== BitConfig Project Context ===\n")
-	builder.WriteString(fmt.Sprintf("Project: %s\n", config.ProjectName))
-	builder.WriteString(fmt.Sprintf("Languages: %s\n", strings.Join(config.Languages, ", ")))
-	builder.WriteString(fmt.Sprintf("Terminal Agent: %s\n", config.Model))
-	builder.WriteString("\n--- Context ---\n")
-	builder.Write(contextData)
-	return builder.String()
 }
 
 func runTerminalAgent(binary, agentName, agentModel, payload string) error {
@@ -128,7 +117,11 @@ func runTerminalAgent(binary, agentName, agentModel, payload string) error {
 		prompt := contextPrompt + "\n\n" + payload
 		return runWithStdin(binary, []string{"run", model}, prompt)
 	case "Aider":
-		cmd := exec.Command(binary, "--read", "context.txt", "--message", contextPrompt, "--no-git")
+		agentContextPath := "./.bitconfig_agent_context.txt"
+		if err := os.WriteFile(agentContextPath, []byte(payload), 0644); err != nil {
+			return err
+		}
+		cmd := exec.Command(binary, "--read", agentContextPath, "--message", contextPrompt, "--no-git")
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		return cmd.Run()

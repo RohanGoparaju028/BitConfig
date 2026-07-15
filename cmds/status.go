@@ -37,9 +37,11 @@ func Status() {
 		fmt.Println("\nNo dependency changes recorded since init.")
 	}
 
-	if _, err := os.Stat("./context.txt"); err == nil {
-		fmt.Println("context.txt exists — run push-context to send it to your terminal agent.")
+	if graph, err := LoadKnowledgeGraph(); err == nil {
+		fmt.Printf("\nKnowledge graph: %d nodes, %d connections\n", len(graph.Nodes), len(graph.Edges))
+		fmt.Println("  bitconfig graph show        — inspect in terminal")
+		fmt.Println("  bitconfig push-context      — send to your terminal agent")
 	} else {
-		fmt.Println("\nNo context.txt yet — run get-context to generate project context.")
+		fmt.Println("\nNo knowledge graph yet — run 'bitconfig graph build' first.")
 	}
 }

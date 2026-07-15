@@ -2,6 +2,9 @@
 BitConfig
 context.txt
 context.txt.bak
+knowledge_graph.json
+knowledge_graph.json.bak
+.bitconfig_agent_context.txt
 .DS_Store
 .DS_Store
 .env
