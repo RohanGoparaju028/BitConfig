@@ -1,18 +1,42 @@
-BitConfig is developed with the aim of a command line tool that tracks the programming project that is being developed suck as what are the languages that are used and what are the dependencies that the project is using right now and store that information as a json along with the number of lines that the dependecy file have so when we add more dependencies we can just do the difference of current lenght to already stored lenght.
+BitConfig is a developer CLI tool that captures project architecture, tracks dependency changes, and constructs a structured Knowledge Graph of software repositories. It features an integrated Machine Learning pipeline utilizing a **Relational Graph Convolutional Network (R-GCN)** to perform link prediction and blast-radius risk scoring, pushing rich context directly to terminal AI agents (Claude Code, Cursor Agent, Ollama, Gemini CLI, Aider).
 
-The main purpose of this cli tool is to get context of the project,which is done by reading the README.md markdown file and summarizing it and asks the developer to give additional context and stores in a text format and push the context that it got from readme summarization and the context that we provided to the large language models(llm) cli's to get better results in the areas where we stuck solving.
+### Core Features
 
-The core features that we as a BitConfig team are developing are 
-   1) init to initialize the .BitConfig file which creates what programming tech stack we are using 
-   2) help to give the basic syntax
-   3) get-context to summarize the README.md and prompts the user to enter additinal context that we are doing in the project or we could give the query we need llms to solve the doubts 
-   4) push-context pushes the context to the llms and llm provides the results for the project
-   5) update updates the .BitConfig  by adding new dependencies that we added sinces the initializing the .BitConfig or last update
-   6) diff tells the list of dependencies that are not present in .BitConfig but present in your project.
-we are intended to add more feature as the project grows.
+1. **`init`**: Initialize `.bitconfig` by detecting programming languages, dependency manifests, and configuring your target terminal AI agent.
+2. **`graph build`** (or `get-context`): Scans the repository filesystem and README summary to generate a heterogeneous `knowledge_graph.json`.
+3. **`graph gnn`**: **[ML Feature]** Trains a PyTorch Relational Graph Convolutional Network (R-GCN) with negative sampling on Apple Silicon / CUDA to learn node representations, predict hidden architectural couplings, and evaluate change blast-radius risk.
+4. **`graph gnn show`**: Inspect GNN training metrics (ROC-AUC, loss), top critical files/modules, and predicted implicit couplings.
+5. **`graph show`**: Print nodes and graph connections directly in your terminal.
+6. **`push-context`**: Formats the Knowledge Graph and GNN ML architectural predictions into an optimized payload and launches your terminal AI agent with standard I/O streaming.
+7. **`diff`**: Compares current workspace dependencies against `.bitconfig` snapshots to report additions or removals.
+8. **`update`**: Updates `.bitconfig` with new dependencies and records dependency change history.
+9. **`status`**: Shows current configuration, tracked dependency snapshots, and graph status.
 
-Right now we have implemented init help and get-context features and to try the implemented features clone this repo and buil the program using go build -o command and you can execute this feature for yourself.
+### Machine Learning Architecture (`gnn/`)
 
-The resultant binaries for MacOS and Windows is different 
-MacOS:- the binary is implemented by ./BuildName 
-Windows:- try using go build -o BuildName.exe main.go and type BuildName.exe <command>
+- **Model**: Multi-layer Relational Graph Convolutional Network (R-GCN) with basis decomposition (`gnn/model.py`).
+- **Decoder**: DistMult bilinear scoring for link prediction ($P(\text{edge}(u, r, v)) = \sigma(h_u^\top R_r h_v)$).
+- **Criticality Head**: Multi-Layer Perceptron (MLP) mapping node graph representations to blast-radius risk scores.
+- **Hardware Acceleration**: Automatically leverages Apple Silicon (`mps`), NVIDIA CUDA, or CPU fallback.
+
+### Building & Running
+
+```bash
+# Build the binary
+go build -o bitconfig main.go
+
+# Initialize and scan project
+./bitconfig init
+
+# Build Knowledge Graph
+./bitconfig graph build
+
+# Train GNN on Knowledge Graph
+./bitconfig graph gnn
+
+# View GNN predictions
+./bitconfig graph gnn show
+
+# Push graph & ML insights to your AI agent
+./bitconfig push-context
+```

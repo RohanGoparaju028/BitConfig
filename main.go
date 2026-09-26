@@ -58,6 +58,8 @@ func handleGraph(args []string) {
 		L.GraphShow()
 	case "note":
 		L.GraphNote()
+	case "gnn":
+		L.GraphGNN(args[1:])
 	case "help":
 		L.GraphHelp()
 	default:

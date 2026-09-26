@@ -10,6 +10,7 @@ import (
 )
 
 const KnowledgeGraphPath = "./knowledge_graph.json"
+const KnowledgeGraphMLPath = "./knowledge_graph_ml.json"
 
 var skipList = map[string]bool{
 	".git": true, ".gitignore": true, ".DS_Store": true,
@@ -291,6 +292,53 @@ func LoadKnowledgeGraph() (KnowledgeGraph, error) {
 	return graph, nil
 }
 
+type MLMetrics struct {
+	Device        string  `json:"device"`
+	Epochs        int     `json:"epochs"`
+	FinalLoss     float64 `json:"final_loss"`
+	ValROCAUC     float64 `json:"val_roc_auc"`
+	NumNodes      int     `json:"num_nodes"`
+	NumEdges      int     `json:"num_edges"`
+	NumRelations  int     `json:"num_relations"`
+}
+
+type MLCriticalNode struct {
+	ID               string  `json:"id"`
+	Label            string  `json:"label"`
+	Type             string  `json:"type"`
+	Path             string  `json:"path"`
+	CriticalityScore float64 `json:"criticality_score"`
+}
+
+type MLPredictedCoupling struct {
+	Source              string  `json:"source"`
+	Target              string  `json:"target"`
+	SourceID            string  `json:"source_id"`
+	TargetID            string  `json:"target_id"`
+	CouplingProbability float64 `json:"coupling_probability"`
+}
+
+type KnowledgeGraphML struct {
+	ProjectName           string                `json:"project_name"`
+	TrainedAt             string                `json:"trained_at"`
+	ModelArchitecture     string                `json:"model_architecture"`
+	Metrics               MLMetrics             `json:"metrics"`
+	CriticalNodes         []MLCriticalNode      `json:"critical_nodes"`
+	TopPredictedCouplings []MLPredictedCoupling `json:"top_predicted_couplings"`
+}
+
+func LoadKnowledgeGraphML() (KnowledgeGraphML, error) {
+	data, err := os.ReadFile(KnowledgeGraphMLPath)
+	if err != nil {
+		return KnowledgeGraphML{}, err
+	}
+	var ml KnowledgeGraphML
+	if err := json.Unmarshal(data, &ml); err != nil {
+		return KnowledgeGraphML{}, err
+	}
+	return ml, nil
+}
+
 func (kg KnowledgeGraph) ToAgentPayload(config BitConfigFile) string {
 	var b strings.Builder
 
@@ -300,6 +348,35 @@ func (kg KnowledgeGraph) ToAgentPayload(config BitConfigFile) string {
 	b.WriteString(fmt.Sprintf("Terminal Agent: %s\n", config.Model))
 	b.WriteString(fmt.Sprintf("Graph built: %s\n", kg.BuiltAt))
 	b.WriteString(fmt.Sprintf("Nodes: %d | Connections: %d\n\n", len(kg.Nodes), len(kg.Edges)))
+
+	// Inject GNN insights if available
+	if ml, err := LoadKnowledgeGraphML(); err == nil {
+		b.WriteString("=== GNN ARCHITECTURAL INFERENCE (R-GCN) ===\n")
+		b.WriteString(fmt.Sprintf("Architecture: %s (Val ROC-AUC: %.2f%%, Device: %s)\n",
+			ml.ModelArchitecture, ml.Metrics.ValROCAUC*100, ml.Metrics.Device))
+		b.WriteString("Top Critical Files / Modules (Blast Radius Risk):\n")
+		count := 0
+		for _, node := range ml.CriticalNodes {
+			if node.Type != "project" && node.Type != "language" {
+				label := node.Label
+				if node.Path != "" {
+					label = node.Path
+				}
+				b.WriteString(fmt.Sprintf("  - [%s] %s (Impact Risk: %.1f%%)\n", node.Type, label, node.CriticalityScore*100))
+				count++
+				if count >= 6 {
+					break
+				}
+			}
+		}
+		if len(ml.TopPredictedCouplings) > 0 {
+			b.WriteString("\nPredicted Implicit Architectural Couplings (Hidden Dependencies):\n")
+			for _, edge := range ml.TopPredictedCouplings {
+				b.WriteString(fmt.Sprintf("  - %s <---> %s (Confidence: %.1f%%)\n", edge.Source, edge.Target, edge.CouplingProbability*100))
+			}
+		}
+		b.WriteString("\n")
+	}
 
 	b.WriteString("--- NODES ---\n")
 	for _, node := range kg.Nodes {

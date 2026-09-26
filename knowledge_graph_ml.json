@@ -1,0 +1,193 @@
+{
+  "project_name": "BitConfig",
+  "trained_at": "2026-09-26 12:21:21",
+  "model_architecture": "Relational Graph Convolutional Network (R-GCN)",
+  "metrics": {
+    "device": "Apple Silicon (MPS)",
+    "epochs": 60,
+    "final_loss": 0.1421,
+    "val_roc_auc": 0.9965,
+    "num_nodes": 44,
+    "num_edges": 124,
+    "num_relations": 13
+  },
+  "critical_nodes": [
+    {
+      "id": "project:root",
+      "label": "BitConfig",
+      "type": "project",
+      "path": ".",
+      "criticality_score": 0.8563
+    },
+    {
+      "id": "language:json",
+      "label": "json",
+      "type": "language",
+      "path": "",
+      "criticality_score": 0.5832
+    },
+    {
+      "id": "language:go",
+      "label": "go",
+      "type": "language",
+      "path": "",
+      "criticality_score": 0.5769
+    },
+    {
+      "id": "language:python",
+      "label": "python",
+      "type": "language",
+      "path": "",
+      "criticality_score": 0.5135
+    },
+    {
+      "id": "language:typescript",
+      "label": "typescript",
+      "type": "language",
+      "path": "",
+      "criticality_score": 0.4609
+    },
+    {
+      "id": "directory:cmds",
+      "label": "cmds",
+      "type": "directory",
+      "path": "cmds",
+      "criticality_score": 0.4567
+    },
+    {
+      "id": "directory:gnn",
+      "label": "gnn",
+      "type": "directory",
+      "path": "gnn",
+      "criticality_score": 0.4528
+    },
+    {
+      "id": "directory:Summarizer",
+      "label": "Summarizer",
+      "type": "directory",
+      "path": "Summarizer",
+      "criticality_score": 0.4364
+    },
+    {
+      "id": "language:markdown",
+      "label": "markdown",
+      "type": "language",
+      "path": "",
+      "criticality_score": 0.4304
+    },
+    {
+      "id": "language:javascript",
+      "label": "javascript",
+      "type": "language",
+      "path": "",
+      "criticality_score": 0.3898
+    },
+    {
+      "id": "file:cmds/init.go",
+      "label": "init.go",
+      "type": "file",
+      "path": "cmds/init.go",
+      "criticality_score": 0.3712
+    },
+    {
+      "id": "file:Summarizer/summarize.ts",
+      "label": "summarize.ts",
+      "type": "file",
+      "path": "Summarizer/summarize.ts",
+      "criticality_score": 0.3707
+    },
+    {
+      "id": "file:cmds/status.go",
+      "label": "status.go",
+      "type": "file",
+      "path": "cmds/status.go",
+      "criticality_score": 0.3685
+    },
+    {
+      "id": "file:gnn/__init__.py",
+      "label": "__init__.py",
+      "type": "file",
+      "path": "gnn/__init__.py",
+      "criticality_score": 0.3683
+    },
+    {
+      "id": "file:cmds/help.go",
+      "label": "help.go",
+      "type": "file",
+      "path": "cmds/help.go",
+      "criticality_score": 0.368
+    }
+  ],
+  "top_predicted_couplings": [
+    {
+      "source": "Summarizer/summarize.ts",
+      "target": "cmds/init.go",
+      "source_id": "file:Summarizer/summarize.ts",
+      "target_id": "file:cmds/init.go",
+      "coupling_probability": 0.0063
+    },
+    {
+      "source": "Summarizer/summarize.ts",
+      "target": "cmds/help.go",
+      "source_id": "file:Summarizer/summarize.ts",
+      "target_id": "file:cmds/help.go",
+      "coupling_probability": 0.006
+    },
+    {
+      "source": "Summarizer/summarize.ts",
+      "target": "cmds/status.go",
+      "source_id": "file:Summarizer/summarize.ts",
+      "target_id": "file:cmds/status.go",
+      "coupling_probability": 0.006
+    },
+    {
+      "source": "Summarizer/summarize.ts",
+      "target": "cmds/get-context.go",
+      "source_id": "file:Summarizer/summarize.ts",
+      "target_id": "file:cmds/get-context.go",
+      "coupling_probability": 0.0058
+    },
+    {
+      "source": "Summarizer/summarize.ts",
+      "target": "cmds/agents.go",
+      "source_id": "file:Summarizer/summarize.ts",
+      "target_id": "file:cmds/agents.go",
+      "coupling_probability": 0.0056
+    },
+    {
+      "source": "Summarizer/summarize.ts",
+      "target": "cmds/graph.go",
+      "source_id": "file:Summarizer/summarize.ts",
+      "target_id": "file:cmds/graph.go",
+      "coupling_probability": 0.0056
+    },
+    {
+      "source": "Summarizer/summarize.ts",
+      "target": "cmds/knowledge_graph.go",
+      "source_id": "file:Summarizer/summarize.ts",
+      "target_id": "file:cmds/knowledge_graph.go",
+      "coupling_probability": 0.0056
+    },
+    {
+      "source": "Summarizer/summarize.ts",
+      "target": "cmds/diff.go",
+      "source_id": "file:Summarizer/summarize.ts",
+      "target_id": "file:cmds/diff.go",
+      "coupling_probability": 0.0055
+    },
+    {
+      "source": "cmds/help.go",
+      "target": "cmds/init.go",
+      "source_id": "file:cmds/help.go",
+      "target_id": "file:cmds/init.go",
+      "coupling_probability": 0.0054
+    },
+    {
+      "source": "cmds/init.go",
+      "target": "cmds/status.go",
+      "source_id": "file:cmds/init.go",
+      "target_id": "file:cmds/status.go",
+      "coupling_probability": 0.0054
+    }
+  ]
+}

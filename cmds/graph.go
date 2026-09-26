@@ -238,11 +238,74 @@ func mergeNotes(existing, additional string) string {
 	return existing + "\n" + additional
 }
 
+func GraphGNN(args []string) {
+	if len(args) > 0 && args[0] == "show" {
+		GraphGNNShow()
+		return
+	}
+
+	if _, err := os.Stat(KnowledgeGraphPath); err != nil {
+		fmt.Println("knowledge_graph.json not found. Building it first...")
+		GraphBuild()
+	}
+
+	fmt.Println("Training Relational Graph Convolutional Network (R-GCN) on project knowledge graph...")
+	cmd := exec.Command("python3", "gnn/train.py", "--graph", KnowledgeGraphPath, "--output", KnowledgeGraphMLPath)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+
+	if err := cmd.Run(); err != nil {
+		fmt.Printf("GNN training failed: %v\n", err)
+		return
+	}
+	fmt.Println("\nRun 'bitconfig graph gnn show' to inspect model predictions or 'bitconfig push-context' to send to agent.")
+}
+
+func GraphGNNShow() {
+	ml, err := LoadKnowledgeGraphML()
+	if err != nil {
+		fmt.Println("No GNN predictions found. Run 'bitconfig graph gnn' to train the model first.")
+		return
+	}
+
+	fmt.Println("BitConfig Graph Neural Network (R-GCN) Insights")
+	fmt.Println(strings.Repeat("=", 55))
+	fmt.Printf("Project:         %s\n", ml.ProjectName)
+	fmt.Printf("Model:           %s\n", ml.ModelArchitecture)
+	fmt.Printf("Trained at:      %s on %s\n", ml.TrainedAt, ml.Metrics.Device)
+	fmt.Printf("Validation AUC:  %.2f%%\n", ml.Metrics.ValROCAUC*100)
+	fmt.Printf("Final Loss:      %.4f\n", ml.Metrics.FinalLoss)
+	fmt.Println()
+
+	fmt.Println("TOP CRITICAL FILES & MODULES (Blast Radius Risk):")
+	fmt.Println(strings.Repeat("-", 55))
+	for _, n := range ml.CriticalNodes {
+		if n.Type != "project" && n.Type != "language" {
+			label := n.Label
+			if n.Path != "" && n.Path != "." {
+				label = n.Path
+			}
+			fmt.Printf("  [%s] %-35s Risk: %.1f%%\n", n.Type, label, n.CriticalityScore*100)
+		}
+	}
+
+	if len(ml.TopPredictedCouplings) > 0 {
+		fmt.Println("\nPREDICTED ARCHITECTURAL COUPLINGS (Link Prediction):")
+		fmt.Println(strings.Repeat("-", 55))
+		for _, e := range ml.TopPredictedCouplings {
+			fmt.Printf("  %s <---> %s (Confidence: %.1f%%)\n", e.Source, e.Target, e.CouplingProbability*100)
+		}
+	}
+}
+
 func GraphHelp() {
 	fmt.Println("Usage: bitconfig graph <subcommand>")
 	fmt.Println()
 	fmt.Println("Subcommands:")
-	fmt.Println("  build   Scan the project and build knowledge_graph.json")
-	fmt.Println("  show    Print nodes and connections in the terminal")
-	fmt.Println("  note    Add developer notes to the knowledge graph")
+	fmt.Println("  build      Scan the project and build knowledge_graph.json")
+	fmt.Println("  show       Print nodes and connections in the terminal")
+	fmt.Println("  note       Add developer notes to the knowledge graph")
+	fmt.Println("  gnn        Train Relational Graph Convolutional Network (R-GCN) on the graph")
+	fmt.Println("  gnn show   Display GNN risk scores, metrics, and predicted couplings")
 }
