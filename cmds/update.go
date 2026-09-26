@@ -39,6 +39,7 @@ func DoUpdate() {
 	updated_bitconfig := BitConfigFile{
 		ProjectName:                 filepath.Base(currentDir),
 		Model:                       bitconfig.Model,
+		AgentModel:                  bitconfig.AgentModel,
 		Languages:                   detectLanguage,
 		Dependencies:                dep,
 		Initialized:                 bitconfig.Initialized,

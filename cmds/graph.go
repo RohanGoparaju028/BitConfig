@@ -119,28 +119,19 @@ func GraphNote() {
 }
 
 func summarizeReadmeForGraph() string {
-	if _, err := os.Stat("./README.md"); err != nil {
+	data, err := os.ReadFile("./README.md")
+	if err != nil {
 		fmt.Println("No README.md found. Skipping README summarization.")
 		return extractReadmeSummaryFromGraph()
 	}
 
-	cmd := exec.Command("deno", "run", "--allow-read", "--allow-write", "--allow-env", "Summarizer/summarize.ts")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-
-	if err := cmd.Run(); err != nil {
-		fmt.Printf("Warning: Failed to summarize README.md: %v\n", err)
-		return extractReadmeSummaryFromGraph()
-	}
-
-	data, err := os.ReadFile("./context.txt")
-	if err != nil {
-		return extractReadmeSummaryFromGraph()
+	summary := SummarizeText(string(data), 10)
+	if summary == "" {
+		summary = truncate(string(data), 1000)
 	}
 
 	fmt.Println("README summary captured for the knowledge graph.")
-	return strings.TrimSpace(string(data))
+	return summary
 }
 
 func buildKnowledgeGraph(readmeSummary, userNotes string) error {
@@ -249,8 +240,14 @@ func GraphGNN(args []string) {
 		GraphBuild()
 	}
 
+	gnnScript, err := findGNNScript()
+	if err != nil {
+		fmt.Printf("GNN training skipped: %v\n", err)
+		return
+	}
+
 	fmt.Println("Training Relational Graph Convolutional Network (R-GCN) on project knowledge graph...")
-	cmd := exec.Command("python3", "gnn/train.py", "--graph", KnowledgeGraphPath, "--output", KnowledgeGraphMLPath)
+	cmd := exec.Command("python3", gnnScript, "--graph", KnowledgeGraphPath, "--output", KnowledgeGraphMLPath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
@@ -260,6 +257,28 @@ func GraphGNN(args []string) {
 		return
 	}
 	fmt.Println("\nRun 'bitconfig graph gnn show' to inspect model predictions or 'bitconfig push-context' to send to agent.")
+}
+
+func findGNNScript() (string, error) {
+	if _, err := os.Stat("gnn/train.py"); err == nil {
+		return "gnn/train.py", nil
+	}
+
+	if exe, err := os.Executable(); err == nil {
+		sibling := filepath.Join(filepath.Dir(exe), "gnn", "train.py")
+		if _, err := os.Stat(sibling); err == nil {
+			return sibling, nil
+		}
+	}
+
+	if home, err := os.UserHomeDir(); err == nil {
+		globalGNN := filepath.Join(home, ".bitconfig", "gnn", "train.py")
+		if _, err := os.Stat(globalGNN); err == nil {
+			return globalGNN, nil
+		}
+	}
+
+	return "", fmt.Errorf("gnn/train.py not found. GNN training requires gnn/train.py in the project, next to the bitconfig binary, or in ~/.bitconfig/gnn/")
 }
 
 func GraphGNNShow() {

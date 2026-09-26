@@ -1,10 +1,14 @@
 package cmds
 
 import (
+	"bufio"
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -12,46 +16,54 @@ import (
 
 const contextPrompt = "You have been given a project knowledge graph below. Use the nodes and connections to understand how files, languages, docs, and dependencies relate. Suggest what to focus on next."
 
-type terminalAgent struct {
-	Name    string
-	Binaries []string // try in order
+var supportedProviders = map[string]bool{
+	"Ollama":  true,
+	"Claude":  true,
+	"ChatGPT": true,
+	"Gemini":  true,
 }
 
-var terminalAgents = map[string]terminalAgent{
-	"Claude Code":  {Name: "Claude Code", Binaries: []string{"claude"}},
-	"Cursor Agent": {Name: "Cursor Agent", Binaries: []string{"agent", "cursor-agent"}},
-	"Ollama":       {Name: "Ollama", Binaries: []string{"ollama"}},
-	"Gemini CLI":   {Name: "Gemini CLI", Binaries: []string{"gemini"}},
-	"Aider":        {Name: "Aider", Binaries: []string{"aider"}},
+var legacyProviderNames = map[string]string{
+	"Claude Code":  "Claude",
+	"Gemini CLI":   "Gemini",
+	"ChatGpt":      "ChatGPT",
+	"Cursor Agent": "ChatGPT",
+	"Aider":        "ChatGPT",
 }
 
-var legacyAgentNames = map[string]string{
-	"Claude":  "Claude Code",
-	"Gemini":  "Gemini CLI",
-	"ChatGpt": "",
-	"Ollama":  "Ollama",
-}
-
-func resolveAgent(name string) (terminalAgent, error) {
-	if agent, ok := terminalAgents[name]; ok {
-		return agent, nil
+func resolveProvider(name string) (string, error) {
+	if supportedProviders[name] {
+		return name, nil
 	}
-	if mapped, ok := legacyAgentNames[name]; ok {
-		if mapped == "" {
-			return terminalAgent{}, fmt.Errorf("'%s' is a web LLM — re-run 'bitconfig init' and pick a terminal agent", name)
-		}
-		return terminalAgents[mapped], nil
+	if mapped, ok := legacyProviderNames[name]; ok {
+		return mapped, nil
 	}
-	return terminalAgent{}, fmt.Errorf("unknown agent '%s' — re-run 'bitconfig init' to pick a terminal agent", name)
+	switch strings.ToLower(name) {
+	case "ollama":
+		return "Ollama", nil
+	case "claude", "anthropic":
+		return "Claude", nil
+	case "chatgpt", "openai":
+		return "ChatGPT", nil
+	case "gemini", "google":
+		return "Gemini", nil
+	}
+	return "", fmt.Errorf("unknown provider '%s' — re-run 'bitconfig init' to pick an AI provider (Ollama, Claude, ChatGPT, Gemini)", name)
 }
 
-func findBinary(candidates []string) (string, error) {
-	for _, bin := range candidates {
-		if path, err := exec.LookPath(bin); err == nil {
-			return path, nil
-		}
+func defaultModelForProvider(provider string) string {
+	switch provider {
+	case "Ollama":
+		return "llama3.2"
+	case "Claude":
+		return "claude-3-5-sonnet-latest"
+	case "ChatGPT":
+		return "gpt-4o"
+	case "Gemini":
+		return "gemini-1.5-flash"
+	default:
+		return ""
 	}
-	return "", fmt.Errorf("none of [%s] found in PATH — install the CLI first", strings.Join(candidates, ", "))
 }
 
 func PushContext() {
@@ -74,162 +86,324 @@ func PushContext() {
 		os.Exit(1)
 	}
 
-	payload := graph.ToAgentPayload(config)
-
-	agent, err := resolveAgent(config.Model)
+	provider, err := resolveProvider(config.Model)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	binary, err := findBinary(agent.Binaries)
-	if err != nil {
-		fmt.Println(err)
-		printInstallHint(agent.Name)
-		os.Exit(1)
+	model := config.AgentModel
+	if model == "" {
+		model = defaultModelForProvider(provider)
 	}
 
-	if err := validateAgentAuth(agent.Name); err != nil {
+	if err := validateProviderAuth(provider); err != nil {
 		fmt.Printf("Error: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("Sending knowledge graph to %s...\n\n", agent.Name)
-	if err := runTerminalAgent(binary, agent.Name, config.AgentModel, payload); err != nil {
-		fmt.Printf("Failed to run %s: %v\n", agent.Name, err)
+	payload := graph.ToAgentPayload(config)
+
+	fmt.Printf("Sending knowledge graph to %s (%s)...\n\n", provider, model)
+	if err := streamToAI(provider, model, payload); err != nil {
+		fmt.Printf("\nFailed to connect to %s: %v\n", provider, err)
 		os.Exit(1)
 	}
+	fmt.Println()
 }
 
-func runTerminalAgent(binary, agentName, agentModel, payload string) error {
-	switch agentName {
-	case "Claude Code":
-		return runWithStdin(binary, []string{"-p", contextPrompt, "--bare"}, payload)
-	case "Cursor Agent":
-		return runWithStdin(binary, []string{"-p", contextPrompt, "--trust"}, payload)
-	case "Gemini CLI":
-		return runWithStdin(binary, []string{"-p", contextPrompt, "--skip-trust"}, payload)
+func validateProviderAuth(provider string) error {
+	switch provider {
 	case "Ollama":
-		model := agentModel
-		if model == "" {
-			model = "llama3.2"
+		conn, err := net.DialTimeout("tcp", "127.0.0.1:11434", 800*time.Millisecond)
+		if err != nil {
+			conn, err = net.DialTimeout("tcp", "localhost:11434", 800*time.Millisecond)
 		}
-		prompt := contextPrompt + "\n\n" + payload
-		return runWithStdin(binary, []string{"run", model}, prompt)
-	case "Aider":
-		agentContextPath := "./.bitconfig_agent_context.txt"
-		if err := os.WriteFile(agentContextPath, []byte(payload), 0644); err != nil {
-			return err
+		if err != nil {
+			return fmt.Errorf("Ollama service does not appear to be running at localhost:11434.\nPlease make sure Ollama is started ('ollama serve') before running this command")
 		}
-		cmd := exec.Command(binary, "--read", agentContextPath, "--message", contextPrompt, "--no-git")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		return cmd.Run()
-	default:
-		return fmt.Errorf("no runner configured for %s", agentName)
-	}
-}
+		conn.Close()
+		return nil
 
-func runWithStdin(binary string, args []string, stdin string) error {
-	cmd := exec.Command(binary, args...)
-	cmd.Stdin = strings.NewReader(stdin)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Dir = "."
-	return cmd.Run()
-}
+	case "Claude":
+		if os.Getenv("ANTHROPIC_API_KEY") != "" {
+			return nil
+		}
+		return fmt.Errorf("ANTHROPIC_API_KEY is not set.\nPlease set it via:\n  export ANTHROPIC_API_KEY=\"your_key\"\nor add ANTHROPIC_API_KEY=your_key in .env")
 
-func printInstallHint(agentName string) {
-	fmt.Println("\nInstall hints:")
-	switch agentName {
-	case "Claude Code":
-		fmt.Println("  npm install -g @anthropic-ai/claude-code")
-	case "Cursor Agent":
-		fmt.Println("  curl https://cursor.com/install -fsS | bash")
-	case "Ollama":
-		fmt.Println("  https://ollama.com/download")
-	case "Gemini CLI":
-		fmt.Println("  npm install -g @google/gemini-cli")
-	case "Aider":
-		fmt.Println("  pip install aider-install && aider-install")
-	}
-}
+	case "ChatGPT":
+		if os.Getenv("OPENAI_API_KEY") != "" {
+			return nil
+		}
+		return fmt.Errorf("OPENAI_API_KEY is not set.\nPlease set it via:\n  export OPENAI_API_KEY=\"your_key\"\nor add OPENAI_API_KEY=your_key in .env")
 
-func validateAgentAuth(agentName string) error {
-	switch agentName {
-	case "Gemini CLI":
-		if os.Getenv("GEMINI_API_KEY") != "" || os.Getenv("GOOGLE_GENAI_USE_VERTEXAI") != "" || os.Getenv("GOOGLE_GENAI_USE_GCA") != "" {
+	case "Gemini":
+		if os.Getenv("GEMINI_API_KEY") != "" {
 			return nil
 		}
 		home, err := os.UserHomeDir()
 		if err == nil {
 			settingsPath := filepath.Join(home, ".gemini", "settings.json")
-			if _, err := os.Stat(settingsPath); err == nil {
-				if data, err := os.ReadFile(settingsPath); err == nil && len(strings.TrimSpace(string(data))) > 2 {
-					return nil
+			if data, err := os.ReadFile(settingsPath); err == nil {
+				var s map[string]any
+				if err := json.Unmarshal(data, &s); err == nil {
+					if key, ok := s["apiKey"].(string); ok && key != "" {
+						os.Setenv("GEMINI_API_KEY", key)
+						return nil
+					}
 				}
 			}
 		}
-		return fmt.Errorf("authentication is not configured.\nTo fix this, please do one of the following:\n  1. Set the GEMINI_API_KEY environment variable:\n     export GEMINI_API_KEY=\"your_key\"\n  2. Set GOOGLE_GENAI_USE_VERTEXAI=true or GOOGLE_GENAI_USE_GCA=true\n  3. Configure your API key/auth in ~/.gemini/settings.json")
-
-	case "Claude Code":
-		if os.Getenv("ANTHROPIC_API_KEY") != "" {
-			return nil
-		}
-		home, err := os.UserHomeDir()
-		if err == nil {
-			configDirs := []string{
-				filepath.Join(home, ".config", "claude-code"),
-				filepath.Join(home, ".config", "@anthropic-ai", "claude-code"),
-			}
-			for _, dir := range configDirs {
-				if _, err := os.Stat(dir); err == nil {
-					return nil
-				}
-			}
-		}
-		return fmt.Errorf("authentication is not configured.\nTo fix this, please do one of the following:\n  1. Set the ANTHROPIC_API_KEY environment variable:\n     export ANTHROPIC_API_KEY=\"your_key\"\n  2. Run 'claude login' to authenticate the CLI")
-
-	case "Cursor Agent":
-		if os.Getenv("CURSOR_API_KEY") != "" {
-			return nil
-		}
-		home, err := os.UserHomeDir()
-		if err == nil {
-			configDirs := []string{
-				filepath.Join(home, ".config", "cursor-agent"),
-				filepath.Join(home, ".cursor-agent"),
-				filepath.Join(home, ".cursor"),
-			}
-			for _, dir := range configDirs {
-				if _, err := os.Stat(dir); err == nil {
-					return nil
-				}
-			}
-		}
-		return fmt.Errorf("authentication is not configured.\nTo fix this, please do one of the following:\n  1. Set the CURSOR_API_KEY environment variable:\n     export CURSOR_API_KEY=\"your_key\"\n  2. Run 'agent login' to authenticate the CLI")
-
-	case "Aider":
-		keys := []string{"OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "GROQ_API_KEY", "COHERE_API_KEY"}
-		for _, key := range keys {
-			if os.Getenv(key) != "" {
-				return nil
-			}
-		}
-		return fmt.Errorf("no API key set. Aider requires at least one API key environment variable, such as:\n  export OPENAI_API_KEY=\"your_key\"\n  export ANTHROPIC_API_KEY=\"your_key\"\n  export GEMINI_API_KEY=\"your_key\"")
-
-	case "Ollama":
-		conn, err := net.DialTimeout("tcp", "127.0.0.1:11434", 500*time.Millisecond)
-		if err != nil {
-			conn, err = net.DialTimeout("tcp", "localhost:11434", 500*time.Millisecond)
-		}
-		if err != nil {
-			return fmt.Errorf("Ollama service does not appear to be running.\nPlease make sure Ollama is started before running this command")
-		}
-		conn.Close()
-		return nil
+		return fmt.Errorf("GEMINI_API_KEY is not set.\nPlease set it via:\n  export GEMINI_API_KEY=\"your_key\"\nor add GEMINI_API_KEY=your_key in .env")
 	}
 	return nil
+}
+
+func streamToAI(provider, model, payload string) error {
+	client := &http.Client{Timeout: 180 * time.Second}
+
+	switch provider {
+	case "Ollama":
+		return streamOllama(client, model, payload)
+	case "Claude":
+		return streamClaude(client, model, payload)
+	case "ChatGPT":
+		return streamChatGPT(client, model, payload)
+	case "Gemini":
+		return streamGemini(client, model, payload)
+	default:
+		return fmt.Errorf("unsupported provider: %s", provider)
+	}
+}
+
+func streamOllama(client *http.Client, model, payload string) error {
+	reqBody := map[string]any{
+		"model": model,
+		"messages": []map[string]string{
+			{"role": "system", "content": contextPrompt},
+			{"role": "user", "content": payload},
+		},
+		"stream": true,
+	}
+
+	jsonBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return err
+	}
+
+	resp, err := client.Post("http://localhost:11434/api/chat", "application/json", bytes.NewReader(jsonBytes))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(b))
+	}
+
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		var chunk struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+			Done bool `json:"done"`
+		}
+		if err := json.Unmarshal([]byte(line), &chunk); err == nil {
+			fmt.Print(chunk.Message.Content)
+			if chunk.Done {
+				break
+			}
+		}
+	}
+	return scanner.Err()
+}
+
+func streamChatGPT(client *http.Client, model, payload string) error {
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	reqBody := map[string]any{
+		"model": model,
+		"messages": []map[string]string{
+			{"role": "system", "content": contextPrompt},
+			{"role": "user", "content": payload},
+		},
+		"stream": true,
+	}
+
+	jsonBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewReader(jsonBytes))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(b))
+	}
+
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		data := strings.TrimPrefix(line, "data: ")
+		if data == "[DONE]" {
+			break
+		}
+		var chunk struct {
+			Choices []struct {
+				Delta struct {
+					Content string `json:"content"`
+				} `json:"delta"`
+			} `json:"choices"`
+		}
+		if err := json.Unmarshal([]byte(data), &chunk); err == nil {
+			if len(chunk.Choices) > 0 {
+				fmt.Print(chunk.Choices[0].Delta.Content)
+			}
+		}
+	}
+	return scanner.Err()
+}
+
+func streamClaude(client *http.Client, model, payload string) error {
+	apiKey := os.Getenv("ANTHROPIC_API_KEY")
+	reqBody := map[string]any{
+		"model":      model,
+		"max_tokens": 4096,
+		"system":     contextPrompt,
+		"messages": []map[string]string{
+			{"role": "user", "content": payload},
+		},
+		"stream": true,
+	}
+
+	jsonBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", "https://api.anthropic.com/v1/messages", bytes.NewReader(jsonBytes))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-api-key", apiKey)
+	req.Header.Set("anthropic-version", "2023-06-01")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(b))
+	}
+
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		data := strings.TrimPrefix(line, "data: ")
+		var chunk struct {
+			Type  string `json:"type"`
+			Delta struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"delta"`
+		}
+		if err := json.Unmarshal([]byte(data), &chunk); err == nil {
+			if chunk.Type == "content_block_delta" && chunk.Delta.Text != "" {
+				fmt.Print(chunk.Delta.Text)
+			}
+		}
+	}
+	return scanner.Err()
+}
+
+func streamGemini(client *http.Client, model, payload string) error {
+	apiKey := os.Getenv("GEMINI_API_KEY")
+	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:streamGenerateContent?alt=sse&key=%s", model, apiKey)
+
+	reqBody := map[string]any{
+		"contents": []map[string]any{
+			{
+				"parts": []map[string]string{
+					{"text": contextPrompt + "\n\n" + payload},
+				},
+			},
+		},
+	}
+
+	jsonBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", url, bytes.NewReader(jsonBytes))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(b))
+	}
+
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		data := strings.TrimPrefix(line, "data: ")
+		var chunk struct {
+			Candidates []struct {
+				Content struct {
+					Parts []struct {
+						Text string `json:"text"`
+					} `json:"parts"`
+				} `json:"content"`
+			} `json:"candidates"`
+		}
+		if err := json.Unmarshal([]byte(data), &chunk); err == nil {
+			for _, cand := range chunk.Candidates {
+				for _, part := range cand.Content.Parts {
+					fmt.Print(part.Text)
+				}
+			}
+		}
+	}
+	return scanner.Err()
 }
 
 func loadEnvFile() {

@@ -8,3 +8,5 @@ knowledge_graph.json.bak
 .DS_Store
 .DS_Store
 .env
+dist/
+bitconfig

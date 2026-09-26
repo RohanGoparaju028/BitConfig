@@ -1,12 +1,14 @@
 package cmds
 
 import (
+	"bufio"
 	"encoding/json" // used to convert our struct into a JSON file
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -197,37 +199,47 @@ func DoInit() {
 	projectName := filepath.Base(currentDir)
 	// Ask the developer which AI tool they are using
 
-	fmt.Println("\nWhich terminal agent do you use for this project?")
-	fmt.Println("  0 — Claude Code  (claude)")
-	fmt.Println("  1 — Cursor Agent (agent)")
-	fmt.Println("  2 — Ollama       (ollama)")
-	fmt.Println("  3 — Gemini CLI   (gemini)")
-	fmt.Println("  4 — Aider        (aider)")
+	fmt.Println("\nWhich AI provider do you use for this project?")
+	fmt.Println("  0 — Ollama   (local: http://localhost:11434)")
+	fmt.Println("  1 — Claude   (Anthropic API)")
+	fmt.Println("  2 — ChatGPT  (OpenAI API)")
+	fmt.Println("  3 — Gemini   (Google Gemini API)")
 
-	fmt.Print("\nEnter a number (0-4): ")
+	fmt.Print("\nEnter a number (0-3): ")
 
 	var modelChoice int
-	fmt.Scanf("%d", &modelChoice)
+	fmt.Scanf("%d\n", &modelChoice)
 
-	supportedAgents := []string{"Claude Code", "Cursor Agent", "Ollama", "Gemini CLI", "Aider"}
+	supportedProviders := []string{"Ollama", "Claude", "ChatGPT", "Gemini"}
 
-	if modelChoice < 0 || modelChoice > 4 {
-		fmt.Println("Invalid choice. Please enter a number between 0 and 4.")
+	if modelChoice < 0 || modelChoice > 3 {
+		fmt.Println("Invalid choice. Please enter a number between 0 and 3.")
 		os.Exit(1)
 	}
 
-	selectedAgent := supportedAgents[modelChoice]
-	fmt.Printf("Terminal agent selected: %s\n", selectedAgent)
+	selectedProvider := supportedProviders[modelChoice]
+	fmt.Printf("AI Provider selected: %s\n", selectedProvider)
 
-	var agentModel string
-	if selectedAgent == "Ollama" {
-		fmt.Print("Enter Ollama model name (default: llama3.2): ")
-		fmt.Scanln(&agentModel)
-		if agentModel == "" {
-			agentModel = "llama3.2"
-		}
-		fmt.Printf("Ollama model: %s\n", agentModel)
+	var defaultModelName string
+	switch selectedProvider {
+	case "Ollama":
+		defaultModelName = "llama3.2"
+	case "Claude":
+		defaultModelName = "claude-3-5-sonnet-latest"
+	case "ChatGPT":
+		defaultModelName = "gpt-4o"
+	case "Gemini":
+		defaultModelName = "gemini-1.5-flash"
 	}
+
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Printf("Enter model name (default: %s): ", defaultModelName)
+	agentModel, _ := reader.ReadString('\n')
+	agentModel = strings.TrimSpace(agentModel)
+	if agentModel == "" {
+		agentModel = defaultModelName
+	}
+	fmt.Printf("Selected model: %s\n", agentModel)
 
 	// by looking for known files like go.mod, package.json etc
 	detectedLanguages := iterateToFindLanguage()
@@ -237,7 +249,7 @@ func DoInit() {
 
 	config := BitConfigFile{
 		ProjectName:                 projectName,
-		Model:                       selectedAgent,
+		Model:                       selectedProvider,
 		AgentModel:                  agentModel,
 		Languages:                   detectedLanguages,
 		Dependencies:                dep,

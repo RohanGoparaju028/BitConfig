@@ -17,9 +17,9 @@ func Status() {
 	fmt.Println(strings.Repeat("-", 40))
 	fmt.Printf("Project:      %s\n", config.ProjectName)
 	fmt.Printf("Initialized:  %s\n", config.Initialized)
-	fmt.Printf("Terminal Agent: %s\n", config.Model)
+	fmt.Printf("AI Provider:  %s\n", config.Model)
 	if config.AgentModel != "" {
-		fmt.Printf("Agent Model:    %s\n", config.AgentModel)
+		fmt.Printf("Model:        %s\n", config.AgentModel)
 	}
 	fmt.Printf("Languages:    %s\n", strings.Join(config.Languages, ", "))
 	fmt.Printf("Dependencies: %d tracked file(s)\n", len(config.Dependencies))
@@ -40,7 +40,7 @@ func Status() {
 	if graph, err := LoadKnowledgeGraph(); err == nil {
 		fmt.Printf("\nKnowledge graph: %d nodes, %d connections\n", len(graph.Nodes), len(graph.Edges))
 		fmt.Println("  bitconfig graph show        — inspect in terminal")
-		fmt.Println("  bitconfig push-context      — send to your terminal agent")
+		fmt.Println("  bitconfig push-context      — send to your configured AI")
 	} else {
 		fmt.Println("\nNo knowledge graph yet — run 'bitconfig graph build' first.")
 	}
