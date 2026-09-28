@@ -2,6 +2,10 @@
 set -euo pipefail
 
 VERSION="${1:-v0.1.0}"
+if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
+  echo "Expected a version such as v0.1.0 or v0.1.0-rc.1" >&2
+  exit 1
+fi
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
 STAGE_DIR="$(mktemp -d)"
@@ -22,11 +26,11 @@ build_release() {
 
   mkdir -p "$stage/gnn"
   echo "-> Building $goos/$goarch..."
-  (cd "$ROOT_DIR" && GOOS="$goos" GOARCH="$goarch" go build -trimpath -ldflags="-s -w" -o "$stage/$binary" ./main.go)
+  (cd "$ROOT_DIR" && CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -mod=readonly -trimpath -buildvcs=false -ldflags="-s -w" -o "$stage/$binary" ./main.go)
   cp "$ROOT_DIR"/gnn/*.py "$stage/gnn/"
   cp "$ROOT_DIR/gnn/requirements.txt" "$stage/gnn/"
   cp "$ROOT_DIR/README.md" "$ROOT_DIR/LICENSE" "$stage/"
-  tar -czf "$DIST_DIR/$package.tar.gz" -C "$STAGE_DIR" "$package"
+  python3 "$ROOT_DIR/scripts/package_release.py" "$stage" "$DIST_DIR/$package.tar.gz"
 }
 
 echo "=== Building BitConfig $VERSION release archives ==="

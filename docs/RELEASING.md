@@ -35,21 +35,18 @@ cat dist/SHA256SUMS.txt
 
 ## 3. Publish on GitHub
 
-Push the release commit to GitHub, then create a release from that commit:
-
-1. Open the repository's **Releases** page and choose **Draft a new release**.
-2. Create a tag matching the archive version, such as `v0.1.0`, on the intended commit.
-3. Add a short title and user-facing notes describing features, fixes, and known limitations.
-4. Upload every `dist/*.tar.gz` archive and `dist/SHA256SUMS.txt`.
-5. Publish the release.
-
-Alternatively, with GitHub CLI authenticated and the tag already pushed:
+After CI passes on the release commit, push a new version tag:
 
 ```bash
-gh release create v0.1.0 dist/bitconfig-v0.1.0-*.tar.gz dist/SHA256SUMS.txt \
-  --title "BitConfig v0.1.0" \
-  --notes-file RELEASE_NOTES.md
+git tag v0.1.1
+git push origin v0.1.1
 ```
+
+Use the actual new version; existing tags do not trigger a new build unless pushed as new refs. The Release workflow validates the version, runs Go checks, builds all five archives using the Go version in `go.mod`, verifies checksums, and creates a **draft** release with generated notes and all assets. No repository secret is needed beyond the automatic `GITHUB_TOKEN`; repository policy must allow Actions write access to contents.
+
+Open the draft on the repository's Releases page, review the notes and assets, and publish it. For prereleases, select the prerelease checkbox before publishing. If a run fails after creating a draft, inspect the existing draft before rerunning: the workflow deliberately does not overwrite releases.
+
+Local packaging requires Bash, Python 3, and `shasum`. For matching checksums, use identical source files and the same Go and Python/zlib versions as the build being reproduced. The script disables CGO and VCS metadata and normalizes archive order, timestamps, owners, and permissions. CI builds twice and compares archive checksums. The optional GNN dependency versions are not locked by this workflow.
 
 ## 4. After publishing
 

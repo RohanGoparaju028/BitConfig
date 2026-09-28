@@ -48,7 +48,7 @@ Verify the CLI is available with `bitconfig help`.
 
 ### Option 2: Build From Source
 
-Requirements: Go (see the `go` version in `go.mod`).
+Requirements: Go (see the `go` version in `go.mod`). Release packaging also requires Bash, Python 3, and `shasum`.
 
 ```bash
 # Clone the repository
@@ -61,6 +61,12 @@ go build -o bitconfig main.go
 # Or build versioned release archives for all supported platforms:
 ./build_release.sh v0.1.0
 ```
+
+### Automated builds
+
+[GitHub Actions](https://github.com/RohanGoparaju028/BitConfig/actions) checks builds, `go vet`, and `go test -race` on Linux, macOS, and Windows for pushes to `main` and pull requests. CI also builds all five release archives twice, compares their checksums, and uploads them as a downloadable artifact. There are currently no Go test files; the test command is ready for future tests.
+
+Pushing a new version tag such as `v0.1.1` builds a draft GitHub release with archives and checksums. See [the release guide](docs/RELEASING.md). Workflows pin action commits and use the exact Go version in `go.mod`. Archive metadata is normalized; matching checksums require identical sources and the same Go and Python/zlib toolchains. Optional GNN dependencies remain version ranges, so this does not lock the Python training environment.
 
 ### Checksums
 
