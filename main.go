@@ -28,6 +28,8 @@ func main() {
 	case "push-context":
 		fmt.Println("Sending knowledge graph to your terminal agent...")
 		L.PushContext()
+	case "chat":
+		L.Chat()
 	case "status":
 		L.Status()
 	case "diff":

@@ -436,3 +436,387 @@ func loadEnvFile() {
 		}
 	}
 }
+
+type ChatMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+const chatSystemPrompt = "You are an AI software engineering assistant for this project. Below is the project's architecture knowledge graph and context. Answer questions accurately based on this project context, nodes, connections, blast-radius risk, and dependencies."
+
+func Chat() {
+	loadEnvFile()
+
+	config, err := LoadBitConfig()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	graph, err := LoadKnowledgeGraph()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	if len(graph.Nodes) == 0 {
+		fmt.Println("Knowledge graph is empty. Run 'bitconfig graph build' first.")
+		os.Exit(1)
+	}
+
+	provider, err := resolveProvider(config.Model)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	model := config.AgentModel
+	if model == "" {
+		model = defaultModelForProvider(provider)
+	}
+
+	if err := validateProviderAuth(provider); err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	payload := graph.ToAgentPayload(config)
+	systemPrompt := fmt.Sprintf("%s\n\nProject Knowledge Graph:\n%s", chatSystemPrompt, payload)
+
+	fmt.Printf("Started interactive chat session with %s (%s)\n", provider, model)
+	fmt.Println("Ask any question regarding your codebase. Type 'exit' to quit.")
+	fmt.Println()
+
+	reader := bufio.NewScanner(os.Stdin)
+	var history []ChatMessage
+
+	for {
+		fmt.Print("(bitconfig chat) > ")
+		if !reader.Scan() {
+			break
+		}
+		input := strings.TrimSpace(reader.Text())
+		if input == "" {
+			continue
+		}
+		if strings.EqualFold(input, "exit") || strings.EqualFold(input, "quit") {
+			fmt.Println("Exiting chat session. Goodbye!")
+			break
+		}
+
+		history = append(history, ChatMessage{Role: "user", Content: input})
+		fmt.Println()
+
+		reply, err := streamChatToAI(provider, model, systemPrompt, history)
+		if err != nil {
+			fmt.Printf("\nError: %v\n", err)
+			history = history[:len(history)-1]
+			continue
+		}
+		fmt.Print("\n\n")
+		history = append(history, ChatMessage{Role: "assistant", Content: reply})
+	}
+	if err := reader.Err(); err != nil {
+		fmt.Printf("\nInput error: %v\n", err)
+	}
+	fmt.Println()
+	fmt.Println("Chat session ended.")
+}
+
+func streamChatToAI(provider, model, systemPrompt string, history []ChatMessage) (string, error) {
+	client := &http.Client{Timeout: 180 * time.Second}
+
+	switch provider {
+	case "Ollama":
+		return streamChatOllama(client, model, systemPrompt, history)
+	case "Claude":
+		return streamChatClaude(client, model, systemPrompt, history)
+	case "ChatGPT":
+		return streamChatChatGPT(client, model, systemPrompt, history)
+	case "Gemini":
+		return streamChatGemini(client, model, systemPrompt, history)
+	default:
+		return "", fmt.Errorf("unsupported provider: %s", provider)
+	}
+}
+
+func streamChatOllama(client *http.Client, model, systemPrompt string, history []ChatMessage) (string, error) {
+	messages := make([]map[string]string, 0, len(history)+1)
+	messages = append(messages, map[string]string{
+		"role":    "system",
+		"content": systemPrompt,
+	})
+	for _, m := range history {
+		messages = append(messages, map[string]string{
+			"role":    m.Role,
+			"content": m.Content,
+		})
+	}
+
+	reqBody := map[string]any{
+		"model":    model,
+		"messages": messages,
+		"stream":   true,
+	}
+
+	jsonBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := client.Post("http://localhost:11434/api/chat", "application/json", bytes.NewReader(jsonBytes))
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(b))
+	}
+
+	var reply strings.Builder
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		var chunk struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+			Done bool `json:"done"`
+		}
+		if err := json.Unmarshal([]byte(line), &chunk); err == nil {
+			fmt.Print(chunk.Message.Content)
+			reply.WriteString(chunk.Message.Content)
+			if chunk.Done {
+				break
+			}
+		}
+	}
+	return reply.String(), scanner.Err()
+}
+
+func streamChatChatGPT(client *http.Client, model, systemPrompt string, history []ChatMessage) (string, error) {
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	messages := make([]map[string]string, 0, len(history)+1)
+	messages = append(messages, map[string]string{
+		"role":    "system",
+		"content": systemPrompt,
+	})
+	for _, m := range history {
+		messages = append(messages, map[string]string{
+			"role":    m.Role,
+			"content": m.Content,
+		})
+	}
+
+	reqBody := map[string]any{
+		"model":    model,
+		"messages": messages,
+		"stream":   true,
+	}
+
+	jsonBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", err
+	}
+
+	req, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewReader(jsonBytes))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(b))
+	}
+
+	var reply strings.Builder
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		data := strings.TrimPrefix(line, "data: ")
+		if data == "[DONE]" {
+			break
+		}
+		var chunk struct {
+			Choices []struct {
+				Delta struct {
+					Content string `json:"content"`
+				} `json:"delta"`
+			} `json:"choices"`
+		}
+		if err := json.Unmarshal([]byte(data), &chunk); err == nil {
+			if len(chunk.Choices) > 0 {
+				fmt.Print(chunk.Choices[0].Delta.Content)
+				reply.WriteString(chunk.Choices[0].Delta.Content)
+			}
+		}
+	}
+	return reply.String(), scanner.Err()
+}
+
+func streamChatClaude(client *http.Client, model, systemPrompt string, history []ChatMessage) (string, error) {
+	apiKey := os.Getenv("ANTHROPIC_API_KEY")
+	var messages []map[string]string
+	for _, m := range history {
+		if m.Role == "system" {
+			continue
+		}
+		messages = append(messages, map[string]string{
+			"role":    m.Role,
+			"content": m.Content,
+		})
+	}
+
+	reqBody := map[string]any{
+		"model":      model,
+		"max_tokens": 4096,
+		"system":     systemPrompt,
+		"messages":   messages,
+		"stream":     true,
+	}
+
+	jsonBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", err
+	}
+
+	req, err := http.NewRequest("POST", "https://api.anthropic.com/v1/messages", bytes.NewReader(jsonBytes))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-api-key", apiKey)
+	req.Header.Set("anthropic-version", "2023-06-01")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(b))
+	}
+
+	var reply strings.Builder
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		data := strings.TrimPrefix(line, "data: ")
+		var chunk struct {
+			Type  string `json:"type"`
+			Delta struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"delta"`
+		}
+		if err := json.Unmarshal([]byte(data), &chunk); err == nil {
+			if chunk.Type == "content_block_delta" && chunk.Delta.Text != "" {
+				fmt.Print(chunk.Delta.Text)
+				reply.WriteString(chunk.Delta.Text)
+			}
+		}
+	}
+	return reply.String(), scanner.Err()
+}
+
+func streamChatGemini(client *http.Client, model, systemPrompt string, history []ChatMessage) (string, error) {
+	apiKey := os.Getenv("GEMINI_API_KEY")
+	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:streamGenerateContent?alt=sse&key=%s", model, apiKey)
+
+	var contents []map[string]any
+	for _, m := range history {
+		if m.Role == "system" {
+			continue
+		}
+		role := "user"
+		if m.Role == "assistant" {
+			role = "model"
+		}
+		contents = append(contents, map[string]any{
+			"role": role,
+			"parts": []map[string]string{
+				{"text": m.Content},
+			},
+		})
+	}
+
+	reqBody := map[string]any{
+		"system_instruction": map[string]any{
+			"parts": []map[string]string{
+				{"text": systemPrompt},
+			},
+		},
+		"contents": contents,
+	}
+
+	jsonBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", err
+	}
+
+	req, err := http.NewRequest("POST", url, bytes.NewReader(jsonBytes))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(b))
+	}
+
+	var reply strings.Builder
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		data := strings.TrimPrefix(line, "data: ")
+		var chunk struct {
+			Candidates []struct {
+				Content struct {
+					Parts []struct {
+						Text string `json:"text"`
+					} `json:"parts"`
+				} `json:"content"`
+			} `json:"candidates"`
+		}
+		if err := json.Unmarshal([]byte(data), &chunk); err == nil {
+			for _, cand := range chunk.Candidates {
+				for _, part := range cand.Content.Parts {
+					fmt.Print(part.Text)
+					reply.WriteString(part.Text)
+				}
+			}
+		}
+	}
+	return reply.String(), scanner.Err()
+}

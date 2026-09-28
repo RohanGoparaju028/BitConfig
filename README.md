@@ -114,7 +114,13 @@ bitconfig push-context
 ```
 Streams the structured knowledge graph and GNN ML architectural predictions directly to your configured AI model in real time.
 
-### 6. Track Dependency Changes
+### 6. Keep an Interactive Agent Conversation
+```bash
+bitconfig chat
+```
+Ask follow-up questions about the project in one ongoing session. BitConfig includes the project graph as context and keeps earlier user and assistant messages in the conversation history. Type `exit` or `quit`, or send EOF (Ctrl-D), to end the session.
+
+### 7. Track Dependency Changes
 ```bash
 # Compare current dependencies against the saved snapshot
 bitconfig diff

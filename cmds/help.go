@@ -10,6 +10,7 @@ func Help() {
 	fmt.Println("  help          Show this help message")
 	fmt.Println("  graph         Build and inspect the project knowledge graph")
 	fmt.Println("  push-context  Send the knowledge graph to your configured AI (Ollama, Claude, ChatGPT, Gemini)")
+	fmt.Println("  chat          Interactive Q&A session with configured AI about the project")
 	fmt.Println("  status        Show current project config and dependency snapshot")
 	fmt.Println("  diff          Compare current project against saved .bitconfig")
 	fmt.Println("  update        Save new languages and dependency changes to .bitconfig")
