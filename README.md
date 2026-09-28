@@ -17,32 +17,38 @@ BitConfig connects directly to AI providers via native HTTP streaming — no ext
 
 ## Installation
 
-### Option 1: Install Prebuilt Binary Globally (Recommended)
+### Option 1: Install a prebuilt release (recommended)
 
-Copy the prebuilt binary for your OS to your system PATH:
+Open the project's [GitHub Releases](https://github.com/RohanGoparaju028/BitConfig/releases) and download the archive matching your operating system and CPU. Release archives are named `bitconfig-vX.Y.Z-OS-ARCH.tar.gz` and include the CLI, README, license, and GNN Python files.
+
+On macOS or Linux, extract the archive, then install the binary. Replace the archive name below with the one you downloaded:
 
 ```bash
-# macOS (Apple Silicon M1/M2/M3/M4)
-sudo cp dist/bitconfig-darwin-arm64 /usr/local/bin/bitconfig
-
-# macOS (Intel)
-sudo cp dist/bitconfig-darwin-amd64 /usr/local/bin/bitconfig
-
-# Linux (x86_64)
-sudo cp dist/bitconfig-linux-amd64 /usr/local/bin/bitconfig
-
-# Linux (ARM64)
-sudo cp dist/bitconfig-linux-arm64 /usr/local/bin/bitconfig
+tar -xzf bitconfig-v0.1.0-darwin-arm64.tar.gz
+cd bitconfig-v0.1.0-darwin-arm64
+sudo install -m 755 bitconfig /usr/local/bin/bitconfig
 ```
 
-Make sure it's executable:
+Use `darwin-arm64` for Apple Silicon, `darwin-amd64` for Intel Macs, `linux-amd64` for x86_64 Linux, or `linux-arm64` for ARM64 Linux. For GNN support, keep the included `gnn/` directory beside the installed executable:
+
 ```bash
-sudo chmod +x /usr/local/bin/bitconfig
+sudo mkdir -p /usr/local/bin/gnn
+sudo install -m 644 gnn/*.py gnn/requirements.txt /usr/local/bin/gnn/
 ```
+
+For Windows, extract the `windows-amd64` archive and add its directory to your `PATH`. Keep the `gnn` directory beside `bitconfig.exe` if you want GNN support.
+
+To use the optional GNN feature, install its Python requirements:
+
+```bash
+python3 -m pip install -r /usr/local/bin/gnn/requirements.txt
+```
+
+Verify the CLI is available with `bitconfig help`.
 
 ### Option 2: Build From Source
 
-Requirements: [Go 1.22+](https://go.dev/dl/)
+Requirements: Go (see the `go` version in `go.mod`).
 
 ```bash
 # Clone the repository
@@ -52,8 +58,16 @@ cd BitConfig
 # Build host binary
 go build -o bitconfig main.go
 
-# Or cross-compile for all platforms:
-./build_release.sh
+# Or build versioned release archives for all supported platforms:
+./build_release.sh v0.1.0
+```
+
+### Checksums
+
+Release archives include a `SHA256SUMS.txt` file. On macOS or Linux, verify a downloaded archive from the directory containing the checksum file:
+
+```bash
+shasum -a 256 -c SHA256SUMS.txt
 ```
 
 ---

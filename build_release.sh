@@ -1,34 +1,45 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
-echo "=== Building BitConfig Cross-Platform Release Binaries ==="
+VERSION="${1:-v0.1.0}"
+ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+DIST_DIR="$ROOT_DIR/dist"
+STAGE_DIR="$(mktemp -d)"
+trap 'rm -rf "$STAGE_DIR"' EXIT
 
-mkdir -p dist
+mkdir -p "$DIST_DIR"
 
-# 1. Local / Current Host Binary
-echo "-> Building local binary (./bitconfig)..."
-go build -ldflags="-s -w" -o bitconfig main.go
+build_release() {
+  local goos="$1"
+  local goarch="$2"
+  local package="bitconfig-${VERSION}-${goos}-${goarch}"
+  local stage="$STAGE_DIR/$package"
+  local binary="bitconfig"
 
-# 2. macOS Apple Silicon (M1/M2/M3/M4)
-echo "-> Building darwin/arm64..."
-GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o dist/bitconfig-darwin-arm64 main.go
+  if [[ "$goos" == "windows" ]]; then
+    binary="bitconfig.exe"
+  fi
 
-# 3. macOS Intel
-echo "-> Building darwin/amd64..."
-GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o dist/bitconfig-darwin-amd64 main.go
+  mkdir -p "$stage/gnn"
+  echo "-> Building $goos/$goarch..."
+  (cd "$ROOT_DIR" && GOOS="$goos" GOARCH="$goarch" go build -trimpath -ldflags="-s -w" -o "$stage/$binary" ./main.go)
+  cp "$ROOT_DIR"/gnn/*.py "$stage/gnn/"
+  cp "$ROOT_DIR/gnn/requirements.txt" "$stage/gnn/"
+  cp "$ROOT_DIR/README.md" "$ROOT_DIR/LICENSE" "$stage/"
+  tar -czf "$DIST_DIR/$package.tar.gz" -C "$STAGE_DIR" "$package"
+}
 
-# 4. Linux x86_64
-echo "-> Building linux/amd64..."
-GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/bitconfig-linux-amd64 main.go
+echo "=== Building BitConfig $VERSION release archives ==="
+build_release darwin arm64
+build_release darwin amd64
+build_release linux amd64
+build_release linux arm64
+build_release windows amd64
 
-# 5. Linux ARM64
-echo "-> Building linux/arm64..."
-GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o dist/bitconfig-linux-arm64 main.go
+(
+  cd "$DIST_DIR"
+  shasum -a 256 bitconfig-"$VERSION"-*.tar.gz > SHA256SUMS.txt
+)
 
-# 6. Windows x86_64
-echo "-> Building windows/amd64..."
-GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o dist/bitconfig-windows-amd64.exe main.go
-
-echo ""
-echo "=== Release Build Complete! ==="
-ls -lh dist/
+echo "=== Release archives created in dist/ ==="
+ls -lh "$DIST_DIR"
